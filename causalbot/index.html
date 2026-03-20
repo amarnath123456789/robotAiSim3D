@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>CausalBot</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { background: #0a0a0a; overflow: hidden; }
+      canvas { display: block; }
+      #ui {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        font-family: monospace;
+      }
+      #status {
+        position: absolute;
+        bottom: 80px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: #888;
+        font-size: 13px;
+        letter-spacing: 0.05em;
+      }
+      #input-wrap {
+        position: absolute;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        pointer-events: all;
+        display: flex;
+        gap: 8px;
+      }
+      #instruction {
+        width: 380px;
+        padding: 10px 16px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 8px;
+        color: #fff;
+        font-family: monospace;
+        font-size: 14px;
+        outline: none;
+      }
+      #instruction::placeholder { color: #555; }
+      #instruction:focus { border-color: rgba(255,255,255,0.35); }
+      #memory-log {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        width: 220px;
+        pointer-events: none;
+      }
+      .memory-item {
+        font-size: 11px;
+        padding: 4px 8px;
+        margin-bottom: 4px;
+        border-radius: 4px;
+        border-left: 2px solid #333;
+        background: rgba(0,0,0,0.4);
+        color: #666;
+      }
+      .memory-item.success { border-color: #1D9E75; color: #1D9E75; }
+      .memory-item.fail    { border-color: #E24B4A; color: #E24B4A; }
+      #tooltip {
+        position: absolute;
+        background: rgba(0,0,0,0.75);
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 6px;
+        padding: 6px 10px;
+        font-size: 11px;
+        color: #ccc;
+        pointer-events: none;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="ui">
+      <div id="memory-log"></div>
+      <div id="status">Ready</div>
+      <div id="input-wrap">
+        <input id="instruction" type="text" placeholder="give the robot an instruction..." />
+      </div>
+      <div id="tooltip"></div>
+    </div>
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>
