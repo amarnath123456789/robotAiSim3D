@@ -1,160 +1,185 @@
-import * as THREE from 'three'
-import { state } from './state.js'
-import { addMemory } from './memory.js'
-import { moveRobotTo, getRobotPosition } from './robot.js'
+import { state, getObject, getRobotPos, setRobotPos } from './state.js'
+import { navigateTo } from './robot.js'
+import { remember } from './memory.js'
+import { getSkill, registerSessionSkill, approveSkill, rejectSkill } from './skillRegistry.js'
+import { planInstruction, inventSkill } from './llm.js'
 
-let currentAction = null
-let actionQueue = []
-let onComplete = null
+// The context object passed to every skill function
+function buildContext(instruction) {
+  return {
+    navigateTo: (x, y, z, speed) => new Promise(resolve => {
+      navigateTo(x, y, z, resolve, speed)
+    }),
 
-export function startExecution(branch) {
-  state.robot.status = 'executing'
-  actionQueue = flattenBranch(branch)
-  state.execution.currentInstruction = branch.action
-  setStatus(`Executing: ${branch.action}`)
-  runNextAction()
-}
+    setPos: (x, y, z) => setRobotPos(x, y, z),
 
-function flattenBranch(branch) {
-  const actions = []
+    getPos: () => getRobotPos(),
 
-  // Move to waypoints if any
-  if (branch.waypoints?.length > 0) {
-    branch.waypoints.forEach(wp => {
-      actions.push({ type: 'move_to', x: wp.x, z: wp.z })
-    })
-  }
+    setArm: (angle) => { state.robot.armAngle = angle },
 
-  // Arm action based on branch action text
-  const actionText = branch.action.toLowerCase()
-  if (actionText.includes('grab') || actionText.includes('pick') || actionText.includes('take')) {
-    actions.push({ type: 'set_arm', position: 'extended' })
-    actions.push({ type: 'set_arm', position: 'down' })
-    actions.push({ type: 'snap', target: findNearestSnapable() })
-    actions.push({ type: 'set_arm', position: 'retracted' })
-  } else if (actionText.includes('place') || actionText.includes('put') || actionText.includes('release')) {
-    actions.push({ type: 'set_arm', position: 'down' })
-    actions.push({ type: 'release' })
-    actions.push({ type: 'set_arm', position: 'retracted' })
-  }
+    extendArm: (amount) => { state.robot.armExtend = Math.max(0, Math.min(1, amount)) },
 
-  return actions
-}
+    grab: (objectId) => {
+      const obj = getObject(objectId)
+      if (!obj || !obj.snapable) return false
+      if (obj._body) obj._body.setBodyType(0) // freeze physics
+      obj.status = 'held'
+      state.robot.heldObject = obj.id
+      state.robot.eyeColor = 0x00ff88
+      return true
+    },
 
-function findNearestSnapable() {
-  const rp = getRobotPosition()
-  let nearest = null
-  let minDist = Infinity
+    release: () => {
+      if (!state.robot.heldObject) return
+      const obj = getObject(state.robot.heldObject)
+      if (obj) {
+        obj.status = 'intact'
+        if (obj._body) {
+          obj._body.setBodyType(2) // dynamic again
+          const p = getRobotPos()
+          obj._body.setTranslation({ x: p.x + 0.4, y: p.y, z: p.z }, true)
+        }
+      }
+      state.robot.heldObject = null
+      state.robot.eyeColor = 0x4488ff
+    },
 
-  state.objects.forEach(obj => {
-    if (!obj.snapable || obj.state !== 'intact') return
-    const dx = obj.position.x - rp.x
-    const dz = obj.position.z - rp.z
-    const dist = Math.sqrt(dx * dx + dz * dz)
-    if (dist < minDist) {
-      minDist = dist
-      nearest = obj.id
+    setEye: (hex) => { state.robot.eyeColor = hex },
+
+    wait: (ms) => new Promise(resolve => setTimeout(resolve, ms)),
+
+    getObject: (nameOrId) => getObject(nameOrId),
+
+    getWorldBounds: () => state.world.roomBounds,
+
+    remember: (outcome, detail) => remember(instruction, outcome, detail),
+
+    setStatus: (text) => {
+      const el = document.getElementById('status-bar')
+      if (el) el.textContent = text
     }
-  })
-
-  return nearest
-}
-
-export function runNextAction() {
-  if (actionQueue.length === 0) {
-    onExecutionComplete('success', 'Action completed successfully')
-    return
-  }
-
-  currentAction = actionQueue.shift()
-  executeAction(currentAction)
-}
-
-function executeAction(action) {
-  if (action.type === 'move_to') {
-    moveRobotTo(action.x, action.z)
-    // Wait until robot is close enough then run next
-    waitUntilArrived(action.x, action.z, runNextAction)
-
-  } else if (action.type === 'set_arm') {
-    state.robot.armPosition = action.position
-    setTimeout(runNextAction, 500)
-
-  } else if (action.type === 'snap') {
-    snapObject(action.target)
-    setTimeout(runNextAction, 400)
-
-  } else if (action.type === 'release') {
-    releaseObject()
-    setTimeout(runNextAction, 400)
-
-  } else if (action.type === 'wait') {
-    setTimeout(runNextAction, action.duration || 600)
   }
 }
 
-function waitUntilArrived(targetX, targetZ, callback) {
-  const check = setInterval(() => {
-    const rp = getRobotPosition()
-    const dx = targetX - rp.x
-    const dz = targetZ - rp.z
-    const dist = Math.sqrt(dx * dx + dz * dz)
-    if (dist < 0.15) {
-      clearInterval(check)
-      callback()
+export async function handleInstruction(instruction) {
+  if (state.execution.running) return
+  state.execution.running = true
+  state.robot.status = 'thinking'
+
+  try {
+    // Step 1 — LLM plans what to do
+    const plan = await planInstruction(instruction)
+    if (!plan) { state.execution.running = false; return }
+
+    console.log('Plan:', plan)
+
+    // Step 2 — if new skill needed, invent it
+    if (plan.needsNewSkill && plan.newSkillName) {
+      const worldCtx = JSON.stringify(
+        Object.values(state.world.objects).map(o => ({
+          id: o.id, name: o.name, pos: o.position, status: o.status
+        })), null, 2
+      )
+
+      const code = await inventSkill(plan.newSkillName, instruction, worldCtx)
+      console.log('Raw skill code:', code)
+      if (!code) {
+        setStatus('Could not invent skill.')
+        state.execution.running = false
+        return
+      }
+
+      const ok = registerSessionSkill(plan.newSkillName, code)
+      if (!ok) {
+        setStatus('Skill code was invalid.')
+        state.execution.running = false
+        return
+      }
+
+      // Inject the new skill into the plan
+      plan.actions = [{
+        skill: plan.newSkillName,
+        args: {},
+        description: instruction
+      }]
+
+      // Show approval UI after execution
+      state.execution.pendingApproval = plan.newSkillName
     }
-  }, 50)
-}
 
-function snapObject(objectId) {
-  if (!objectId) return
-  const obj = state.objects.find(o => o.id === objectId)
-  if (!obj) return
+    // Step 3 — execute each action
+    state.robot.status = 'executing'
+    const ctx = buildContext(instruction)
 
-  obj.state = 'held'
-  state.robot.heldObject = objectId
+    for (const action of plan.actions) {
+      const skill = getSkill(action.skill)
+      if (!skill) {
+        console.warn(`Skill not found: ${action.skill}`)
+        continue
+      }
 
-  // Disable physics on held object
-  if (obj.rapierBody) {
-    obj.rapierBody.setBodyType(0) // 0 = fixed
+      setStatus(`${action.description || action.skill}...`)
+      console.log('Running skill:', action.skill, action.args)
+
+      // Merge args into context
+      const enrichedCtx = {
+        ...ctx,
+        args: action.args || {},
+        target: action.args?.target ? getObject(action.args.target) : null,
+      }
+
+      try {
+        await skill.fn(enrichedCtx)
+      } catch (e) {
+        console.error(`Skill "${action.skill}" threw:`, e)
+        remember(instruction, 'fail', e.message)
+      }
+    }
+
+    // Step 4 — show approval if new skill
+    if (state.execution.pendingApproval) {
+      showApprovalUI(state.execution.pendingApproval)
+      state.execution.pendingApproval = null
+    }
+
+    state.robot.status = 'idle'
+    state.robot.eyeColor = 0x4488ff
+    remember(instruction, 'success', plan.plan)
+    setStatus('Done.')
+
+  } catch (e) {
+    console.error('Execution error:', e)
+    state.robot.status = 'failed'
+    state.robot.eyeColor = 0xff3333
+    remember(instruction, 'fail', e.message)
+    setStatus('Something went wrong.')
   }
 
-  console.log(`Snapped: ${objectId}`)
+  state.execution.running = false
 }
 
-function releaseObject() {
-  if (!state.robot.heldObject) return
-  const obj = state.objects.find(o => o.id === state.robot.heldObject)
-  if (!obj) return
+function showApprovalUI(skillName) {
+  const panel = document.getElementById('approve-panel')
+  const nameEl = document.getElementById('approve-skill-name')
+  if (!panel || !nameEl) return
 
-  obj.state = 'intact'
-  state.robot.heldObject = null
+  nameEl.textContent = skillName
+  panel.classList.add('visible')
 
-  // Re-enable physics
-  if (obj.rapierBody) {
-    obj.rapierBody.setBodyType(2) // 2 = dynamic
-    obj.rapierBody.setTranslation(
-      { x: state.robot.position.x, y: state.robot.position.y + 0.3, z: state.robot.position.z },
-      true
-    )
+  document.getElementById('btn-approve').onclick = () => {
+    approveSkill(skillName)
+    panel.classList.remove('visible')
+    setStatus(`Skill "${skillName}" saved permanently.`)
   }
 
-  console.log('Object released')
-}
-
-function onExecutionComplete(outcome, detail) {
-  state.robot.status = 'idle'
-  state.robot.armPosition = 'retracted'
-  addMemory(
-    state.execution.currentInstruction || 'unknown',
-    outcome,
-    detail,
-    state.robot.heldObject ? [state.robot.heldObject] : []
-  )
-  setStatus(outcome === 'success' ? 'Done.' : `Failed: ${detail}`)
+  document.getElementById('btn-reject').onclick = () => {
+    rejectSkill(skillName)
+    panel.classList.remove('visible')
+    setStatus(`Skill "${skillName}" discarded.`)
+  }
 }
 
 function setStatus(text) {
-  const el = document.getElementById('status')
+  const el = document.getElementById('status-bar')
   if (el) el.textContent = text
 }

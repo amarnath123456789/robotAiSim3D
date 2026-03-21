@@ -1,22 +1,21 @@
-import * as THREE from 'three'
-import { initScene, updateScene } from './src/scene.js'
-import { initRobot, updateRobot } from './src/robot.js'
+import { initScene, renderScene } from './src/scene.js'
+import { initRobot } from './src/robot.js'
 import { initPhysics, stepPhysics } from './src/physics.js'
+import { initSkillRegistry } from './src/skillRegistry.js'
 import { initUI } from './src/ui.js'
-import { state } from './src/state.js'
+import { updateRobot } from './src/robot.js'
+import * as THREE from 'three'
 
 const clock = new THREE.Clock()
 
 async function init() {
-  console.log('Initialising CausalBot...')
+  console.log('Booting CausalBot...')
   await initPhysics()
-  console.log('Physics ready')
   await initScene()
-  console.log('Scene ready')
   await initRobot()
-  console.log('Robot ready')
+  initSkillRegistry()
   initUI()
-  console.log('UI ready')
+  console.log('All systems ready.')
   animate()
 }
 
@@ -25,7 +24,7 @@ function animate() {
   const delta = clock.getDelta()
   stepPhysics(delta)
   updateRobot(delta)
-  updateScene(delta)
+  renderScene()
 }
 
-init().catch(err => console.error('INIT FAILED:', err))
+init().catch(err => console.error('Boot failed:', err))

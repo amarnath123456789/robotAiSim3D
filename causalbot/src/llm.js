@@ -1,131 +1,173 @@
-import { state } from './state.js'
+import { state, getObject, getRobotPos } from './state.js'
 import { getMemorySummary } from './memory.js'
+import { getAllSkillNames, hasSkill } from './skillRegistry.js'
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY
-const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`
 
-function buildSceneDescription() {
-  const objects = state.objects
-    .filter(o => o.state !== 'broken')
-    .map(o => `${o.name} at (${o.position.x.toFixed(1)}, ${o.position.y.toFixed(1)}, ${o.position.z.toFixed(1)}) — mass: ${o.mass}kg, fragility: ${o.fragility}`)
+function buildWorldContext() {
+  const objs = Object.values(state.world.objects)
+    .map(o => `  ${o.name} (id:${o.id}) at [${o.position.map(v => v.toFixed(2)).join(', ')}] status:${o.status}`)
     .join('\n')
 
-  const robot = state.robot
-  return `Robot position: (${robot.position.x.toFixed(1)}, ${robot.position.y.toFixed(1)}, ${robot.position.z.toFixed(1)})
-Held object: ${robot.heldObject || 'none'}
+  const rp = getRobotPos()
+  const skills = getAllSkillNames()
 
-Objects in scene:
-${objects}`
+  return `ROBOT STATE:
+  position: [${rp.x.toFixed(2)}, ${rp.y.toFixed(2)}, ${rp.z.toFixed(2)}]
+  holding: ${state.robot.heldObject || 'nothing'}
+  status: ${state.robot.status}
+
+WORLD OBJECTS:
+${objs}
+
+ROOM BOUNDS: x[-3,3] z[-3,3] floor_y:0
+
+AVAILABLE SKILLS: ${skills.length ? skills.join(', ') : 'none yet'}
+
+MEMORY:
+${getMemorySummary()}`
 }
 
-function buildPrompt(instruction, forcedBranch = null) {
-  const scene = buildSceneDescription()
-  const memory = getMemorySummary()
-  const forced = forcedBranch
-    ? `\nThe user has forced this branch: "${forcedBranch}". Generate consequences branching FROM this forced action.`
-    : ''
+// Ask LLM to decide what to do — returns a plan
+function buildPlanPrompt(instruction) {
+  const rp = getRobotPos()
+  return `Robot brain. Pick skills for instruction.
 
-  return `${scene}
+ROBOT: [${rp.x.toFixed(1)},${rp.y.toFixed(1)},${rp.z.toFixed(1)}] holding:${state.robot.heldObject||'nothing'}
+OBJECTS: ${Object.values(state.world.objects).map(o=>`${o.name}(${o.id})@[${o.position.map(v=>v.toFixed(1)).join(',')}]`).join(' ')}
+SKILLS: ${getAllSkillNames().join(',')}
 
-Memory of past actions:
-${memory}
+INSTRUCTION: "${instruction}"
 
-Instruction: "${instruction}"${forced}
+Return compact JSON only, no spaces, no markdown:
+{"plan":"x","actions":[{"skill":"s","args":{"target":"id"},"description":"x"}],"needsNewSkill":false,"newSkillName":null}
 
-Generate a consequence tree for how the robot should handle this instruction. Think 3-4 steps ahead. Consider physics, fragility, and past mistakes.
-
-Return ONLY valid JSON in this exact format:
-{
-  "branches": [
-    {
-      "id": "b1",
-      "action": "short action description",
-      "outcome": "what happens if this action is taken",
-      "risk": "low|medium|high",
-      "confidence": 0.85,
-      "waypoints": [{"x": 0, "y": 0.5, "z": 1}],
-      "children": [
-        {
-          "id": "b1a",
-          "action": "next action",
-          "outcome": "next outcome",
-          "risk": "low",
-          "confidence": 0.8,
-          "waypoints": [],
-          "children": []
-        }
-      ]
-    }
-  ]
-}`
+Keep "plan" value under 5 words. Keep "description" under 5 words.`
 }
 
-export async function generateConsequenceTree(instruction, forcedBranch = null) {
-  state.robot.status = 'thinking'
+export async function planInstruction(instruction) {
   setStatus('Thinking...')
+  state.robot.eyeColor = 0xffaa00
+  state.robot.status = 'thinking'
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await callGemini(buildPlanPrompt(instruction))
+      const json = extractJSON(res)
+      const plan = JSON.parse(json)
+      state.robot.status = 'idle'
+      return plan
+    } catch (e) {
+      console.warn(`Plan attempt ${attempt + 1} failed:`, e.message)
+      if (attempt === 2) {
+        state.robot.status = 'failed'
+        state.robot.eyeColor = 0xff3333
+        setStatus('Could not understand. Try again.')
+        return null
+      }
+    }
+  }
+}
+
+// Ask LLM to invent a new skill as JS code
+export async function inventSkill(skillName, instruction, worldContext) {
+  setStatus(`Inventing skill: ${skillName}...`)
+
+  const prompt = `Write a JavaScript skill body for a robot.
+
+Skill name: "${skillName}"
+Task: "${instruction}"
+
+RULES:
+- Use context.getObject(name) to find object positions — NEVER hardcode coordinates
+- context.getObject() returns {position: [x,y,z]} 
+- For navigation: const obj = context.getObject('ball'); await context.navigateTo(obj.position[0], 1.2, obj.position[2]);
+- Always use context.getPos() for current robot position
+- Max 6 lines, no markdown, no comments, just code
+
+EXAMPLES BY SKILL TYPE:
+
+jump:
+const p = context.getPos();
+context.setPos(p.x, p.y + 0.8, p.z);
+await context.wait(400);
+context.setPos(p.x, p.y, p.z);
+context.setStatus('Jumped!');
+
+go_to (going to an object):
+const obj = context.getObject('${instruction.toLowerCase().includes('ball') ? 'ball' : instruction.toLowerCase().includes('glass') ? 'glass' : instruction.toLowerCase().includes('box') ? 'box' : 'ball'}');
+if (!obj) { context.setStatus('Object not found'); return; }
+await context.navigateTo(obj.position[0], 1.2, obj.position[2]);
+context.setStatus('Arrived!');
+
+pick_up:
+const obj = context.getObject('${instruction.toLowerCase().includes('ball') ? 'object_ball' : instruction.toLowerCase().includes('glass') ? 'object_glass' : 'object_box'}');
+if (!obj) { context.setStatus('Object not found'); return; }
+await context.navigateTo(obj.position[0], 1.2, obj.position[2]);
+context.setArm(-1.2);
+await context.wait(300);
+context.grab(obj.id);
+context.setArm(0);
+context.setStatus('Picked up!');
+
+spin:
+const p = context.getPos();
+for (let i = 0; i < 8; i++) {
+  const angle = (i / 8) * Math.PI * 2;
+  context.setPos(p.x + Math.cos(angle) * 0.3, p.y, p.z + Math.sin(angle) * 0.3);
+  await context.wait(100);
+}
+context.setStatus('Spun!');
+
+Now write the skill body for "${skillName}". Return ONLY the code lines, nothing else.`
 
   try {
-    if (!API_KEY) {
-      throw new Error('Missing VITE_GEMINI_API_KEY. Add it to your .env file.')
-    }
-
-    const requestUrl = `${API_URL}?key=${encodeURIComponent(API_KEY)}`
-
-    const response = await fetch(requestUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [
-            {
-              text: `You are a robot causal reasoning engine. Given a scene, memory, and instruction — generate a consequence tree as strict JSON only. No explanation, no markdown, just the JSON object. Keep actions short (under 6 words). Max 3 branches per level, max depth 3.`
-            }
-          ]
-        },
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: buildPrompt(instruction, forcedBranch) }]
-          }
-        ],
-        generationConfig: {
-          maxOutputTokens: 1000,
-          temperature: 0.2
-        }
-      })
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Gemini request failed: ${response.status} ${errorText}`)
-    }
-
-    const data = await response.json()
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
-
-    if (!text) {
-      throw new Error('Gemini returned an empty response.')
-    }
-
-    // Parse JSON — strip any accidental markdown
-    const clean = text.replace(/```json|```/g, '').trim()
-    const tree = JSON.parse(clean)
-
-    state.tree.branches = tree.branches
-    state.robot.status = 'idle'
-    return tree.branches
-
-  } catch (err) {
-    console.error('LLM call failed:', err)
-    state.robot.status = 'failed'
-    setStatus('Failed to think. Try again.')
+    const code = await callGemini(prompt)
+    console.log('Invented skill code:', code)
+    // Clean any accidental markdown
+    return code
+      .replace(/```javascript|```js|```/gi, '')
+      .trim()
+  } catch (e) {
+    console.error('Skill invention failed:', e)
     return null
   }
 }
 
+async function callGemini(prompt) {
+  const res = await fetch(`${API_URL}?key=${API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 2048,
+      }
+    })
+  })
+
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.error?.message || 'API error')
+  }
+
+  const data = await res.json()
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+  console.log('LLM raw:', text)
+  return text
+}
+
+function extractJSON(text) {
+  const clean = text.replace(/```json|```/gi, '').trim()
+  const start = clean.indexOf('{')
+  const end = clean.lastIndexOf('}')
+  if (start === -1 || end === -1) throw new Error('No JSON in response')
+  return clean.slice(start, end + 1)
+}
+
 function setStatus(text) {
-  const el = document.getElementById('status')
+  const el = document.getElementById('status-bar')
   if (el) el.textContent = text
 }
