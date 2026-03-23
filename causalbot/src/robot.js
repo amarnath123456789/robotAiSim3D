@@ -4,6 +4,7 @@ import { state, getRobotPos, setRobotPos } from './state.js'
 
 const loader = new GLTFLoader()
 let root, armMesh, handMesh, eyeMesh
+let heldMeshParentedId = null
 
 export async function initRobot() {
   const gltf = await loader.loadAsync('/robot1.glb')
@@ -78,18 +79,26 @@ export function updateRobot(delta) {
   if (state.robot.heldObject) {
     const obj = state.world.objects[state.robot.heldObject]
     const mesh = state.scene.three?.getObjectByName(state.robot.heldObject)
-    if (obj && mesh) {
-      // Position object at arm tip
-      const armLength = 0.5
-      const angle = root.rotation.y
-      const handX = root.position.x + Math.sin(angle) * armLength
-      const handY = root.position.y - 0.1
-      const handZ = root.position.z + Math.cos(angle) * armLength
-      obj.position[0] = handX
-      obj.position[1] = handY
-      obj.position[2] = handZ
-      mesh.position.set(handX, handY, handZ)
+    if (obj && mesh && handMesh) {
+      if (mesh.parent !== handMesh) {
+        handMesh.attach(mesh)
+      }
+      mesh.position.set(0, 0, 0)
+
+      const wp = new THREE.Vector3()
+      mesh.getWorldPosition(wp)
+      obj.position[0] = wp.x
+      obj.position[1] = wp.y
+      obj.position[2] = wp.z
+
+      heldMeshParentedId = obj.id
     }
+  } else if (heldMeshParentedId && state.scene.three) {
+    const releasedMesh = state.scene.three.getObjectByName(heldMeshParentedId)
+    if (releasedMesh && releasedMesh.parent !== state.scene.three) {
+      state.scene.three.attach(releasedMesh)
+    }
+    heldMeshParentedId = null
   }
 }
 
