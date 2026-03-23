@@ -1,9 +1,11 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { state } from './state.js'
 
 const loader = new GLTFLoader()
+const rgbeLoader = new RGBELoader()
 
 export async function initScene() {
   const renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -11,12 +13,17 @@ export async function initScene() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
   renderer.shadowMap.enabled = true
   renderer.toneMapping = THREE.ACESFilmicToneMapping
-  renderer.toneMappingExposure = 1.1
+  renderer.toneMappingExposure = 0.9
   document.body.appendChild(renderer.domElement)
 
   const scene = new THREE.Scene()
   scene.background = new THREE.Color(0x111111)
   scene.fog = new THREE.FogExp2(0x111111, 0.04)
+
+  const hdri = await rgbeLoader.loadAsync('/sky3.hdr')
+  hdri.mapping = THREE.EquirectangularReflectionMapping
+  scene.environment = hdri
+  scene.background = hdri
 
   const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 100)
   camera.position.set(0, 5, 7)
@@ -31,25 +38,14 @@ export async function initScene() {
   controls.maxDistance = 15
   controls.update()
 
-  // Lighting
   scene.add(new THREE.AmbientLight(0xffffff, 0.5))
-
-  const sun = new THREE.DirectionalLight(0xfff5e0, 1.4)
-  sun.position.set(4, 10, 4)
-  sun.castShadow = true
-  sun.shadow.mapSize.setScalar(2048)
-  sun.shadow.camera.near = 0.5
-  sun.shadow.camera.far = 30
-  sun.shadow.camera.left = sun.shadow.camera.bottom = -8
-  sun.shadow.camera.right = sun.shadow.camera.top = 8
-  scene.add(sun)
 
   const fillLight = new THREE.PointLight(0x4466ff, 0.5, 15)
   fillLight.position.set(-3, 4, -3)
   scene.add(fillLight)
 
   // Load environment
-  const env = await loader.loadAsync('/environment.glb')
+  const env = await loader.loadAsync('/environment1.glb')
   env.scene.traverse(c => {
     if (c.isMesh) {
       c.castShadow = true

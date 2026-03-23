@@ -36,7 +36,10 @@ function buildContext(instruction) {
       if (obj) {
         obj.status = 'intact'
         const rp = getRobotPos()
-        releaseObjectPhysics(obj.id, rp)
+        const angle = state.scene.three
+          ?.getObjectByName('robot_body')
+          ?.parent?.rotation?.y || 0
+        releaseObjectPhysics(obj.id, rp, angle)
       }
       state.robot.heldObject = null
       state.robot.eyeColor = 0x4488ff
