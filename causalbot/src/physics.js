@@ -62,9 +62,26 @@ export async function initPhysics() {
     )
   })
 
+  function getMeshSizeDims(id, fallback) {
+    const mesh = state.scene.three?.getObjectByName(id)
+    if (mesh) {
+      const box = new THREE.Box3().setFromObject(mesh)
+      const size = new THREE.Vector3()
+      box.getSize(size)
+      // Just in case the mesh is empty
+      if (size.x > 0.01 && size.y > 0.01) {
+        return { w: size.x, h: size.y, d: size.z }
+      }
+    }
+    return fallback
+  }
+
   // Objects — each with real-world tuned physics values
   setupObject('object_glass', {
-    collider: () => RAPIER.ColliderDesc.cylinder(0.07, 0.04),
+    collider: () => {
+      const s = getMeshSizeDims('object_glass', { w: 0.14, h: 0.08, d: 0.14 })
+      return RAPIER.ColliderDesc.cylinder(s.h/2, Math.max(s.w, s.d)/2)
+    },
     mass: 0.22,
     friction: 0.65,
     restitution: 0.05,       // glass barely bounces
@@ -74,7 +91,10 @@ export async function initPhysics() {
   })
 
   setupObject('object_box', {
-    collider: () => RAPIER.ColliderDesc.cuboid(0.17, 0.17, 0.17),
+    collider: () => {
+      const s = getMeshSizeDims('object_box', { w: 0.34, h: 0.34, d: 0.34 })
+      return RAPIER.ColliderDesc.cuboid(s.w/2, s.h/2, s.d/2)
+    },
     mass: 2.8,
     friction: 0.85,           // cardboard is grippy
     restitution: 0.08,
@@ -84,7 +104,10 @@ export async function initPhysics() {
   })
 
   setupObject('object_ball', {
-    collider: () => RAPIER.ColliderDesc.ball(0.13),
+    collider: () => {
+      const s = getMeshSizeDims('object_ball', { w: 0.26, h: 0.26, d: 0.26 })
+      return RAPIER.ColliderDesc.ball(Math.max(s.w, s.h, s.d)/2)
+    },
     mass: 0.45,
     friction: 0.3,            // ball rolls easily
     restitution: 0.82,        // bouncy — like a real ball

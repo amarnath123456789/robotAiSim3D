@@ -10,8 +10,8 @@ const clock = new THREE.Clock()
 
 async function init() {
   console.log('Booting CausalBot...')
-  await initPhysics()
   await initScene()
+  await initPhysics()
   await initRobot()
   await initDebugRobot()
   initSkillRegistry()
