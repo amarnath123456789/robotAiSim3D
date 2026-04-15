@@ -10,6 +10,7 @@ let heldMeshParentedId = null
 export async function initRobot() {
   const gltf = await loader.loadAsync('/robot1.glb')
   root = gltf.scene
+  root.name = 'aiRobot'
 
   root.traverse(c => {
     if (!c.isMesh) return
@@ -35,6 +36,7 @@ export async function initDebugRobot() {
   const gltf = await loader.loadAsync('/robot1.glb')
   debugRoot = gltf.scene
 
+  debugRoot.name = 'debugRobot'
   debugRoot.traverse(c => {
     if (!c.isMesh) return
     c.castShadow = true

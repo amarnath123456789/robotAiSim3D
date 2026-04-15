@@ -62,57 +62,70 @@ export async function initPhysics() {
     )
   })
 
-  function getMeshSizeDims(id, fallback) {
-    const mesh = state.scene.three?.getObjectByName(id)
-    if (mesh) {
-      const box = new THREE.Box3().setFromObject(mesh)
-      const size = new THREE.Vector3()
-      box.getSize(size)
-      // Just in case the mesh is empty
-      if (size.x > 0.01 && size.y > 0.01) {
-        return { w: size.x, h: size.y, d: size.z }
+  function getConvexHullCollider(id, fallbackDesc) {
+    const root = state.scene.three?.getObjectByName(id)
+    if (!root) return fallbackDesc
+
+    const vertices = []
+    
+    // Ensure all matrices are up to date
+    if (state.scene.three) state.scene.three.updateMatrixWorld(true)
+
+    root.traverse(c => {
+      if (c.isMesh && c.geometry && c.geometry.attributes.position) {
+        const pos = c.geometry.attributes.position
+        
+        let m = new THREE.Matrix4()
+        if (c !== root) {
+          const rootInv = new THREE.Matrix4().copy(root.matrixWorld).invert()
+          m.copy(c.matrixWorld).premultiply(rootInv)
+        }
+        
+        const v = new THREE.Vector3()
+        for (let i = 0; i < pos.count; i++) {
+          v.fromBufferAttribute(pos, i)
+          v.applyMatrix4(m)
+          vertices.push(v.x, v.y, v.z)
+        }
       }
+    })
+
+    if (vertices.length > 0) {
+      const f32 = new Float32Array(vertices)
+      const desc = RAPIER.ColliderDesc.convexHull(f32)
+      if (desc) return desc
     }
-    return fallback
+    return fallbackDesc
   }
 
   // Objects — each with real-world tuned physics values
   setupObject('object_glass', {
-    collider: () => {
-      const s = getMeshSizeDims('object_glass', { w: 0.14, h: 0.08, d: 0.14 })
-      return RAPIER.ColliderDesc.cylinder(s.h/2, Math.max(s.w, s.d)/2)
-    },
+    collider: () => getConvexHullCollider('object_glass', RAPIER.ColliderDesc.cylinder(0.07, 0.04)),
     mass: 0.22,
     friction: 0.65,
-    restitution: 0.05,       // glass barely bounces
+    restitution: 0.05,
     linearDamping: 0.3,
     angularDamping: 0.5,
     gravityScale: 1.0,
   })
 
   setupObject('object_box', {
-    collider: () => {
-      const s = getMeshSizeDims('object_box', { w: 0.34, h: 0.34, d: 0.34 })
-      return RAPIER.ColliderDesc.cuboid(s.w/2, s.h/2, s.d/2)
-    },
+    collider: () => getConvexHullCollider('object_box', RAPIER.ColliderDesc.cuboid(0.17, 0.17, 0.17)),
     mass: 2.8,
-    friction: 0.85,           // cardboard is grippy
+    friction: 0.85,
     restitution: 0.08,
-    linearDamping: 0.7,       // heavy, stops quickly
+    linearDamping: 0.7,
     angularDamping: 0.9,
     gravityScale: 1.0,
   })
 
   setupObject('object_ball', {
-    collider: () => {
-      const s = getMeshSizeDims('object_ball', { w: 0.26, h: 0.26, d: 0.26 })
-      return RAPIER.ColliderDesc.ball(Math.max(s.w, s.h, s.d)/2)
-    },
+    collider: () => getConvexHullCollider('object_ball', RAPIER.ColliderDesc.ball(0.13)),
     mass: 0.45,
-    friction: 0.3,            // ball rolls easily
-    restitution: 0.82,        // bouncy — like a real ball
-    linearDamping: 0.02,      // almost no air resistance
-    angularDamping: 0.05,     // keeps spinning
+    friction: 0.3,
+    restitution: 0.82,
+    linearDamping: 0.02,
+    angularDamping: 0.05,
     gravityScale: 1.0,
   })
 
@@ -125,11 +138,22 @@ export async function initPhysics() {
       .setAngularDamping(2.0)
   )
   debugBody.setEnabledRotations(false, true, false, true)
-  world.createCollider(
-    RAPIER.ColliderDesc.capsule(0.15, 0.1).setFriction(0.2).setRestitution(0.1),
-    debugBody
-  )
+  
+  const debugRobotColliderDesc = getConvexHullCollider('debugRobot', RAPIER.ColliderDesc.capsule(0.15, 0.1))
+  debugRobotColliderDesc.setFriction(0.2).setRestitution(0.1)
+
+  world.createCollider(debugRobotColliderDesc, debugBody)
   state.debugRobot._body = debugBody
+
+  // AI Robot Physics — Kinematic position based
+  const arp = state.robot.position
+  const aiBody = world.createRigidBody(
+    RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(arp[0], arp[1], arp[2])
+  )
+  const aiRobotColliderDesc = getConvexHullCollider('aiRobot', RAPIER.ColliderDesc.capsule(0.15, 0.1))
+  aiRobotColliderDesc.setFriction(0.2).setRestitution(0.1)
+  world.createCollider(aiRobotColliderDesc, aiBody)
+  state.robot._body = aiBody
 
   state.scene.rapierWorld = world
   console.log('Physics ready — full simulation active')
@@ -169,11 +193,17 @@ export function stepPhysics(delta) {
   if (!world) return
 
   // Fixed timestep accumulator — decouples physics from frame rate
-  // This is the correct way — no jitter, no tunnelling
   accumulator += Math.min(delta, 0.05)  // cap at 50ms to prevent spiral of death
   while (accumulator >= FIXED_STEP) {
     world.step(eventQueue)
     accumulator -= FIXED_STEP
+  }
+
+  // Sync AI robot physics to its visual interpolation
+  const aiMesh = state.scene.three?.getObjectByName('aiRobot')
+  if (aiMesh && state.robot._body) {
+    state.robot._body.setNextKinematicTranslation(aiMesh.position)
+    state.robot._body.setNextKinematicRotation(aiMesh.quaternion)
   }
 
   // Process collision events — detect hard impacts
@@ -307,29 +337,8 @@ function shatterGlass(obj) {
 }
 
 export function applyRobotCollisions() {
-  if (!world) return
-  const rx = state.robot.position[0]
-  const ry = state.robot.position[1]
-  const rz = state.robot.position[2]
-
-  Object.values(state.world.objects).forEach(obj => {
-    if (!obj._body || obj.status === 'held') return
-    const op = obj._body.translation()
-    const dx = op.x - rx
-    const dy = op.y - ry
-    const dz = op.z - rz
-    const dist = Math.sqrt(dx*dx + dy*dy + dz*dz)
-
-    if (dist < 0.5 && dist > 0.001) {
-      const force = (0.5 - dist) * 5
-      obj._body.wakeUp()
-      obj._body.applyImpulse({
-        x: (dx/dist) * force,
-        y: 0.2,
-        z: (dz/dist) * force
-      }, true)
-    }
-  })
+  // Legacy force-based repelling is no longer used.
+  // AI robot now uses physical kinematic collision shapes.
 }
 
 export function releaseObjectPhysics(objectId, robotPos, forwardAngle = 0) {
