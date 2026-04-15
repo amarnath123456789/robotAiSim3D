@@ -104,11 +104,11 @@ export function updateRobot(delta) {
 
 // Navigation — move robot to world position over time
 export function navigateTo(x, y, z, onArrived, speed = 2.5) {
-  const FLOAT_Y = 1.2  // robot always floats at this height
+  const FLOAT_Y = 0.35  // robot sits on the ground at this height
   const interval = setInterval(() => {
     const p = getRobotPos()
     const tx = x
-    const ty = FLOAT_Y  // ignore Y from caller, always float
+    const ty = FLOAT_Y  // ignore Y from caller, always on ground
     const tz = z
     const dx = tx - p.x
     const dy = ty - p.y

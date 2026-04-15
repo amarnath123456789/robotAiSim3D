@@ -107,6 +107,7 @@ function setupObject(id, cfg) {
       .setGravityScale(cfg.gravityScale)
       .setCcdEnabled(true)   // prevents tunnelling through floor at high speed
   )
+  body.wakeUp()
 
   world.createCollider(
     cfg.collider()
