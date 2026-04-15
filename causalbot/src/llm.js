@@ -3,7 +3,7 @@ import { getMemorySummary } from './memory.js'
 import { getAllSkillNames, hasSkill } from './skillRegistry.js'
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent`
 
 function buildWorldContext() {
   const objs = Object.values(state.world.objects)
@@ -34,15 +34,16 @@ function buildPlanPrompt(instruction) {
   const rp = getRobotPos()
   return `Robot brain. Pick skills for instruction.
 
-ROBOT: [${rp.x.toFixed(1)},${rp.y.toFixed(1)},${rp.z.toFixed(1)}] holding:${state.robot.heldObject||'nothing'}
-OBJECTS: ${Object.values(state.world.objects).map(o=>`${o.name}(${o.id})@[${o.position.map(v=>v.toFixed(1)).join(',')}]`).join(' ')}
+ROBOT: [${rp.x.toFixed(1)},${rp.y.toFixed(1)},${rp.z.toFixed(1)}] holding:${state.robot.heldObject || 'nothing'}
+OBJECTS: ${Object.values(state.world.objects).map(o => `${o.name}(${o.id})@[${o.position.map(v => v.toFixed(1)).join(',')}]`).join(' ')}
 SKILLS: ${getAllSkillNames().join(',')}
 
 INSTRUCTION: "${instruction}"
 
 Return compact JSON only, no spaces, no markdown:
-{"plan":"x","actions":[{"skill":"s","args":{"target":"id"},"description":"x"}],"needsNewSkill":false,"newSkillName":null}
+{"thought":"reasoning here","plan":"x","actions":[{"skill":"s","args":{"target":"id"},"description":"x"}],"needsNewSkill":false,"newSkillName":null}
 
+In "thought", explain your reasoning step-by-step in under 15 words.
 Keep "plan" value under 5 words. Keep "description" under 5 words.`
 }
 

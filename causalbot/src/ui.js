@@ -28,3 +28,24 @@ export function initUI() {
 
   console.log('UI ready')
 }
+
+let thoughtTimeout = null
+
+export function showThought(text) {
+  const el = document.getElementById('thought-bubble')
+  if (!el) return
+
+  clearTimeout(thoughtTimeout)
+  el.textContent = text
+  el.classList.add('visible')
+
+  // Auto-hide after 8 seconds if not cleared earlier
+  thoughtTimeout = setTimeout(() => {
+    el.classList.remove('visible')
+  }, 8000)
+}
+
+export function clearThought() {
+  const el = document.getElementById('thought-bubble')
+  if (el) el.classList.remove('visible')
+}
