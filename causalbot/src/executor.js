@@ -2,7 +2,7 @@ import { state, getObject, getRobotPos, setRobotPos } from './state.js'
 import { navigateTo } from './robot.js'
 import { releaseObjectPhysics } from './physics.js'
 import { remember } from './memory.js'
-import { getSkill, registerSessionSkill, approveSkill, rejectSkill } from './skillRegistry.js'
+import { getSkill, registerSessionSkill, approveSkill, rejectSkill, getAllSkillNames } from './skillRegistry.js'
 import { planInstruction, inventSkill } from './llm.js'
 import { showThoughts, clearThoughts } from './ui.js'
 
@@ -79,13 +79,11 @@ export async function handleInstruction(instruction) {
 
     // Step 2 — if new skill needed, invent it
     if (plan.needsNewSkill && plan.newSkillName) {
-      const worldCtx = JSON.stringify(
-        Object.values(state.world.objects).map(o => ({
-          id: o.id, name: o.name, pos: o.position, status: o.status
-        })), null, 2
+      const code = await inventSkill(
+        plan.newSkillName,
+        plan.newSkillDescription || instruction,
+        getAllSkillNames()
       )
-
-      const code = await inventSkill(plan.newSkillName, instruction, worldCtx)
       console.log('Raw skill code:', code)
       if (!code) {
         setStatus('Could not invent skill.')
@@ -104,7 +102,7 @@ export async function handleInstruction(instruction) {
       plan.actions = [{
         skill: plan.newSkillName,
         args: {},
-        description: instruction
+        description: plan.newSkillDescription || instruction
       }]
 
       // Show approval UI after execution
