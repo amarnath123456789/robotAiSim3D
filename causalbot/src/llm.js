@@ -3,7 +3,7 @@ import { getMemorySummary } from './memory.js'
 import { getAllSkillNames } from './skillRegistry.js'
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent`
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`
 
 // ─── World snapshot ──────────────────────────────────────────────────────────
 
@@ -103,7 +103,7 @@ Return ONLY this JSON. No markdown. No explanation outside JSON.
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const raw = await callGemini(prompt, 2048)
+      const raw = await callGemini(prompt, 4096)
       const json = extractJSON(raw)
       const plan = JSON.parse(json)
       console.log('Plan reasoning:', plan.reasoning)
@@ -224,7 +224,7 @@ context.setStatus('Patrol done!');
 Now write ONLY the code for "${skillName}". Nothing else.`
 
   try {
-    const raw = await callGemini(prompt, 600)
+    const raw = await callGemini(prompt, 1200)
     const code = raw.replace(/```javascript|```js|```/gi, '').trim()
     console.log('Invented skill code:', code)
     return code
@@ -236,7 +236,7 @@ Now write ONLY the code for "${skillName}". Nothing else.`
 
 // ─── Gemini caller ────────────────────────────────────────────────────────────
 
-async function callGemini(prompt, maxTokens = 1024) {
+async function callGemini(prompt, maxTokens = 2048) {
   const res = await fetch(`${API_URL}?key=${API_KEY}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
