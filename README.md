@@ -2,7 +2,9 @@
 
 An advanced, LLM-orchestrated 3D robotic simulation framework designed to explore autonomous reasoning, dynamic skill acquisition, and physics-based task execution in real-time.
 
-## 🚀 Project Idea
+## 🌌 Vision
+
+To bridge the semantic gap between high-level human intent and low-level robotic control by leveraging the generative and reasoning capabilities of Large Language Models within a physically grounded 3D world.
 
 **CausalBot** is more than just a 3D simulation; it is a "living" research environment where a robotic agent uses Large Language Models (LLMs) to bridge the gap between high-level natural language instructions and low-level physical actions. 
 
