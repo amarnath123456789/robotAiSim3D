@@ -6,7 +6,11 @@ import { initUI } from './src/ui.js'
 import { initControls, getKeys } from './src/controls.js'
 import { getGridDebug } from './src/pathfinder.js'
 import { state } from './src/state.js'
+import { togglePerceptionMode } from './src/perception/perceptionMode.js'
+import { invalidateVisionCache } from './src/perception/visionSensor.js'
 import * as THREE from 'three'
+
+window.__togglePerception = togglePerceptionMode
 
 const clock = new THREE.Clock()
 
@@ -20,6 +24,8 @@ async function init() {
   initSkillRegistry()
   initControls()
   initUI()
+  // After all meshes are added to the scene, build the vision raycast cache
+  invalidateVisionCache()
   console.log('All systems ready.')
   animate()
 }

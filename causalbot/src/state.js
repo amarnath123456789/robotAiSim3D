@@ -19,6 +19,8 @@ export const state = {
 
   controlMode: 'ai', // 'ai' | 'debug'
 
+  perceptionMode: 'omniscient', // 'omniscient' | 'vision'
+
   // Ground truth world objects — single source of truth
   world: {
     objects: {

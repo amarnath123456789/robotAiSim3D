@@ -5,6 +5,7 @@ import { remember } from './memory.js'
 import { getSkill, registerSessionSkill, approveSkill, rejectSkill, getAllSkillNames } from './skillRegistry.js'
 import { planInstruction, inventSkill } from './llm.js'
 import { showThoughts, clearThoughts } from './ui.js'
+import { ensureWorldModel, getVisionContextAdditions, resolveObject } from './perception/perceptionMode.js'
 
 // The context object passed to every skill function
 function buildContext(instruction) {
@@ -70,6 +71,9 @@ export async function handleInstruction(instruction) {
   state.robot.status = 'thinking'
 
   try {
+    // Vision mode: scan before planning if world model empty
+    await ensureWorldModel()
+
     // Step 1 — LLM plans what to do
     const plan = await planInstruction(instruction)
     if (!plan) { state.execution.running = false; return }
@@ -115,9 +119,15 @@ export async function handleInstruction(instruction) {
 
     // Step 3 — execute each action
     state.robot.status = 'executing'
-    const ctx = buildContext(instruction)
+    const ctx = {
+      ...buildContext(instruction),
+      ...getVisionContextAdditions(),
+    }
+
+    console.log('Starting action execution loop. Actions:', plan.actions)
 
     for (const action of plan.actions) {
+      console.log('Action starting:', action)
       const skill = getSkill(action.skill)
       if (!skill) {
         console.warn(`Skill not found: ${action.skill}`)
@@ -127,20 +137,35 @@ export async function handleInstruction(instruction) {
       setStatus(`${action.description || action.skill}...`)
       console.log('Running skill:', action.skill, action.args)
 
+      // Vision mode: resolve target by scanning if needed
+      // Skip for scan skills — they DO the scanning themselves
+      const SCAN_SKILLS = ['scanforobject', 'scan_room', 'scanforobject']
+      let target = null
+      if (action.args?.target && !SCAN_SKILLS.includes(action.skill.toLowerCase())) {
+        console.log('Resolving target:', action.args.target)
+        target = await resolveObject(action.args.target)
+        console.log('Target resolved:', target)
+      } else if (action.args?.target) {
+        console.log('Skipping target pre-resolution for scan skill:', action.skill)
+      }
+
       // Merge args into context
       const enrichedCtx = {
         ...ctx,
         args: action.args || {},
-        target: action.args?.target ? getObject(action.args.target) : null,
+        target,
       }
 
       try {
+        console.log('Invoking skill function with enrichedCtx:', enrichedCtx)
         await skill.fn(enrichedCtx)
+        console.log('Skill function finished:', action.skill)
       } catch (e) {
         console.error(`Skill "${action.skill}" threw:`, e)
         remember(instruction, 'fail', e.message)
       }
     }
+    console.log('Action execution loop finished')
 
     // Step 4 — show approval if new skill
     if (state.execution.pendingApproval) {

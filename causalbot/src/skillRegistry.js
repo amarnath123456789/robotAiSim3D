@@ -9,13 +9,13 @@ const BUILTIN_SKILLS = {
   },
   go_to: {
     name: 'go_to',
-    code: `if (!context.target) { context.setStatus('No target'); return; } await context.navigateTo(context.target.position[0], 1.2, context.target.position[2]); context.setStatus('Arrived!');`,
-    fn: (ctx) => { const F = Object.getPrototypeOf(async function(){}).constructor; return new F('context', `if (!context.target) { context.setStatus('No target'); return; } await context.navigateTo(context.target.position[0], 1.2, context.target.position[2]); context.setStatus('Arrived!');`)(ctx) }
+    code: `const tgt = context.target || context.getObject(context.args?.target); if (!tgt) { context.setStatus('Cannot find target: ' + (context.args?.target || '?')); return; } await context.navigateTo(tgt.position[0], 1.2, tgt.position[2]); context.setStatus('Arrived at ' + (tgt.name || tgt.id) + '!');`,
+    fn: (ctx) => { const F = Object.getPrototypeOf(async function(){}).constructor; return new F('context', `const tgt = context.target || context.getObject(context.args?.target); if (!tgt) { context.setStatus('Cannot find target: ' + (context.args?.target || '?')); return; } await context.navigateTo(tgt.position[0], 1.2, tgt.position[2]); context.setStatus('Arrived at ' + (tgt.name || tgt.id) + '!');`)(ctx) }
   },
   go_to_object: {
     name: 'go_to_object',
-    code: `if (!context.target) { context.setStatus('No target'); return; } await context.navigateTo(context.target.position[0], 1.2, context.target.position[2]); context.setStatus('Arrived!');`,
-    fn: (ctx) => { const F = Object.getPrototypeOf(async function(){}).constructor; return new F('context', `if (!context.target) { context.setStatus('No target'); return; } await context.navigateTo(context.target.position[0], 1.2, context.target.position[2]); context.setStatus('Arrived!');`)(ctx) }
+    code: `const tgt = context.target || context.getObject(context.args?.target); if (!tgt) { context.setStatus('Cannot find target: ' + (context.args?.target || '?')); return; } await context.navigateTo(tgt.position[0], 1.2, tgt.position[2]); context.setStatus('Arrived at ' + (tgt.name || tgt.id) + '!');`,
+    fn: (ctx) => { const F = Object.getPrototypeOf(async function(){}).constructor; return new F('context', `const tgt = context.target || context.getObject(context.args?.target); if (!tgt) { context.setStatus('Cannot find target: ' + (context.args?.target || '?')); return; } await context.navigateTo(tgt.position[0], 1.2, tgt.position[2]); context.setStatus('Arrived at ' + (tgt.name || tgt.id) + '!');`)(ctx) }
   },
   pick_up: {
     name: 'pick_up',
@@ -51,6 +51,16 @@ const BUILTIN_SKILLS = {
     name: 'dance',
     code: `for (let i = 0; i < 4; i++) { const p = context.getPos(); context.setPos(p.x+0.3, p.y+0.3, p.z); await context.wait(150); context.setPos(p.x-0.3, p.y, p.z); await context.wait(150); context.setPos(p.x, p.y, p.z); await context.wait(150); } context.setStatus('Danced!');`,
     fn: (context) => { const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor; return new AsyncFunction('context', `for (let i = 0; i < 4; i++) { const p = context.getPos(); context.setPos(p.x+0.3, p.y+0.3, p.z); await context.wait(150); context.setPos(p.x-0.3, p.y, p.z); await context.wait(150); context.setPos(p.x, p.y, p.z); await context.wait(150); } context.setStatus('Danced!');`)(context) }
+  },
+  scanforobject: {
+    name: 'scanForObject',
+    code: `const tgt = context.args?.target; if (!tgt) { context.setStatus('No target to scan for.'); return; } if (context.scanForObject) { const found = await context.scanForObject(tgt); if (found) context.setStatus('Found ' + found.name + '!'); else context.setStatus('Could not find ' + tgt + '.'); } else { context.setStatus('Scan unavailable.'); }`,
+    fn: (context) => { const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor; return new AsyncFunction('context', `const tgt = context.args?.target; if (!tgt) { context.setStatus('No target to scan for.'); return; } if (context.scanForObject) { const found = await context.scanForObject(tgt); if (found) context.setStatus('Found ' + found.name + '!'); else context.setStatus('Could not find ' + tgt + '.'); } else { context.setStatus('Scan unavailable.'); }`)(context) }
+  },
+  scan_room: {
+    name: 'scan_room',
+    code: `if (context.isVisionMode && context.fullScan) { const found = await context.fullScan(); context.setStatus('Scan complete. Found ' + found.length + ' objects.'); } else { context.setStatus('scan_room only works in vision mode.'); }`,
+    fn: (context) => { const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor; return new AsyncFunction('context', `if (context.isVisionMode && context.fullScan) { const found = await context.fullScan(); context.setStatus('Scan complete. Found ' + found.length + ' objects.'); } else { context.setStatus('scan_room only works in vision mode.'); }`)(context) }
   },
 }
 

@@ -1,9 +1,10 @@
 import { state, getObject, getRobotPos } from './state.js'
 import { getMemorySummary } from './memory.js'
 import { getAllSkillNames, hasSkill } from './skillRegistry.js'
+import { getObjectsForPlanner } from './perception/perceptionMode.js'
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent`
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`
 
 // ─── Minimal world snapshot — only what the LLM needs ────────────────────────
 
@@ -15,20 +16,11 @@ function getWorldSnapshot() {
       p: [+rp.x.toFixed(1), +rp.y.toFixed(1), +rp.z.toFixed(1)],
       h: state.robot.heldObject || null,
     },
-    o: Object.values(state.world.objects)
-      .filter(o => o.status !== 'broken') // broken objects irrelevant
-      .map(o => ({
-        id: o.id,
-        n: o.name,
-        p: o.position.map(v => +v.toFixed(1)),
-        st: o.status,
-        m: o.mass,
-        fr: o.fragility,
-        sn: o.snapable,
-      })),
+    o: getObjectsForPlanner(),
     b: state.world.roomBounds,
     sk: getAllSkillNames(),
     mem: getMemorySummary(),
+    perceptionMode: state.perceptionMode,
   }
 }
 
@@ -47,6 +39,9 @@ const DIRECT_SKILL_MAP = {
   scared: 'scared',
   fly: 'fly',
   patrol: 'patrol',
+  scan: 'scan_room',
+  'look around': 'scan_room',
+  'scan room': 'scan_room',
 }
 
 function tryDirectMatch(instruction) {
@@ -86,23 +81,62 @@ export async function planInstruction(instruction) {
 
   const snap = getWorldSnapshot()
 
-  const prompt = `Robot brain. World (compact):
-r=robot(p=pos,h=held) o=objects(id,n=name,p=pos,st=status,m=mass,fr=fragility,sn=snapable) b=bounds sk=skills mem=memory
-${JSON.stringify(snap)}
+  const isVision = state.perceptionMode === 'vision'
 
-Instruction: "${instruction}"
+  // What the LLM sees as the world object list
+  const objectsLabel = isVision
+    ? `PERCEIVED OBJECTS (vision mode — only what robot has seen):`
+    : `WORLD OBJECTS (omniscient — ground truth, always accurate):`
 
-Skills API: navigateTo(x,y,z) setPos(x,y,z) getPos() setArm(-1.5to1.5) grab(id) release() setEye(hex) wait(ms) getObject(id) setStatus(text) getWorldBounds()
+  const visionRules = isVision ? `
+PERCEPTION MODE: VISION ONLY.
+- The object list above is what the robot has PHYSICALLY SEEN so far.
+- If a needed object is NOT in the list, you MUST call scanforobject to find it first.
+- After scanforobject, follow with go_to in the same actions array.
+- NEVER assume you know where something is if it is not in the list.
+` : `
+PERCEPTION MODE: OMNISCIENT — all positions above are ground truth, always use them directly.
+- Do NOT scan. Just use go_to, pick_up, etc. directly with the object id.
+`
 
-Rules:
-- Reuse existing skills. Only needsNewSkill=true if nothing fits.
-- One hand. Already holding? Skip pick_up.
-- Fragility>0.6 = careful. Mass>2=heavy.
-- Navigate within 0.3 units before grabbing.
-- Impossible? Set impossible=true.
+  const prompt = `You are a robot brain. Execute the instruction using the available skills.
 
-Respond ONLY valid JSON, no markdown:
-{"reasoning":"brief","goal":"brief","thoughts":["I see:...","Plan:..."],"actions":[{"skill":"name","args":{"target":"id_or_null"},"description":"brief"}],"needsNewSkill":false,"newSkillName":null,"newSkillDescription":null,"impossible":false,"impossibleReason":null}`
+ROBOT STATE:
+- Position: [${snap.r.p.join(', ')}]
+- Holding: ${state.robot.heldObject || 'nothing'}
+- Skills available: ${snap.sk.join(', ')}
+- Recent memory: ${snap.mem || 'none'}
+
+${objectsLabel}
+${JSON.stringify(snap.o, null, 0)}
+
+Room bounds: x[${snap.b.minX} to ${snap.b.maxX}] z[${snap.b.minZ} to ${snap.b.maxZ}]
+
+INSTRUCTION: "${instruction}"
+${visionRules}
+SKILL USAGE (how to call each skill):
+- go_to: args { "target": "<object id or name>" }
+- pick_up: args { "target": "<object id or name>" }
+- release: args {}
+- scanforobject: args { "target": "<object id or name>" }  — physically rotates robot to find object
+- scan_room: args {}  — full 360° scan to discover all objects
+- patrol: args {}
+- spin: args {}
+- dance: args {}
+
+Primitives for NEW skills only: navigateTo(x,y,z) setPos(x,y,z) getPos() setArm(rad) grab(id) release() wait(ms) setStatus(text)
+
+RULES:
+- Output ALL actions needed to complete the goal in one response. Do NOT stop after just scanning.
+- Example: "go to the ball" → [{skill:"go_to", args:{target:"object_ball"}}]
+- Example (vision mode, ball not seen): [{skill:"scanforobject", args:{target:"ball"}}, {skill:"go_to", args:{target:"object_ball"}}]
+- In OMNISCIENT mode, objects are always known — use go_to directly, never scan.
+- One hand. If holding something, skip pick_up.
+- Fragility>0.6 means handle carefully. Mass>2 means heavy.
+- If truly impossible, set impossible=true.
+
+Respond ONLY with valid JSON (no markdown, no code blocks):
+{"reasoning":"<why>","goal":"<goal>","thoughts":["..."],"actions":[{"skill":"<name>","args":{"target":"<id_or_null>"},"description":"<brief>"}],"needsNewSkill":false,"newSkillName":null,"newSkillDescription":null,"impossible":false,"impossibleReason":null}`
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
