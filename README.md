@@ -100,3 +100,9 @@ Contributions are welcome! If you have ideas for new robot skills, environment i
 ## 📜 License
 
 Distributed under the MIT License. See `LICENSE` for more information.
+
+## 🙏 Acknowledgements
+
+- [Three.js Community](https://discourse.threejs.org/)
+- [Rapier3D Documentation](https://rapier.rs/docs/)
+- [Google AI Studio](https://aistudio.google.com/)
