@@ -49,7 +49,12 @@ The ultimate goal of **robotAiSim3D** is to create a fully autonomous agent capa
 2. **Knowledge Persistence:** Building an extensive library of "invented" skills that grow more complex over time.
 3. **Natural Interaction:** Serving as a bridge for humans to interact with complex robotic systems using simple, conversational language.
 
-## 🛠️ Tech Stack
+## 🗺️ Roadmap
+
+- [ ] **Multi-Agent Collaboration:** Allowing multiple CausalBots to communicate and solve tasks together.
+- [ ] **Object Permanence:** Implementing a long-term memory system for object locations.
+- [ ] **Complex Grippers:** Transitioning from simple physics impulses to more complex, multi-jointed robotic arms.
+- [ ] **Voice Interface:** Direct natural language interaction via Web Speech API.
 
 - **Frontend:** [Vite](https://vitejs.dev/) + Vanilla JavaScript
 - **3D Engine:** [Three.js](https://threejs.org/) for high-performance WebGL rendering.
