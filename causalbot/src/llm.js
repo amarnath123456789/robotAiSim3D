@@ -87,6 +87,11 @@ Return ONLY this JSON. No markdown. No explanation outside JSON.
 {
   "reasoning": "2-3 sentence explanation of what you understood and decided",
   "goal": "one sentence end goal",
+  "thoughts": [
+    "Observation: what is the current world state relevant to this task",
+    "Plan: what sequence of steps will achieve the goal",
+    "Caution: any risks or edge cases to handle"
+  ],
   "actions": [
     {
       "skill": "skill_name",
@@ -108,6 +113,7 @@ Return ONLY this JSON. No markdown. No explanation outside JSON.
       const plan = JSON.parse(json)
       console.log('Plan reasoning:', plan.reasoning)
       console.log('Plan goal:', plan.goal)
+      console.log('Plan thoughts:', plan.thoughts)
       console.log('Plan actions:', plan.actions)
 
       if (plan.impossible) {
