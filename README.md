@@ -22,6 +22,8 @@ The core philosophy revolves around **Autonomous Reasoning (Chain of Thought)** 
 - **Memory & Feedback Loop:** Every action, success, and failure is logged in a **Memory Log**. The agent reflects on these logs to optimize its future planning and skill selection.
 - **Premium 3D Visuals:** A sleek, dark-themed dashboard using **Three.js** with real-time status monitoring, dynamic lighting, and a responsive glassmorphic UI.
 
+---
+
 ## 🏗️ Architecture
 
 ```mermaid
