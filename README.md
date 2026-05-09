@@ -51,11 +51,12 @@ The ultimate goal of **robotAiSim3D** is to create a fully autonomous agent capa
 
 ## 🛠️ Tech Stack
 
-- **Core:** JavaScript, Vite
-- **3D Engine:** [Three.js](https://threejs.org/)
-- **Physics Engine:** [Rapier3D](https://rapier.rs/)
-- **AI Brain:** Google Gemini (2.5-flash-lite)
-- **Styling:** Vanilla CSS (Glassmorphism / Neon Aesthetics)
+- **Frontend:** [Vite](https://vitejs.dev/) + Vanilla JavaScript
+- **3D Engine:** [Three.js](https://threejs.org/) for high-performance WebGL rendering.
+- **Physics Engine:** [Rapier3D](https://rapier.rs/) (Rust-based WASM physics) for deterministic rigid-body dynamics.
+- **AI Integration:** [Google Gemini API](https://ai.google.dev/) (utilizing `gemini-2.5-flash` models).
+- **Styling:** Custom CSS with Glassmorphism, CSS Variables, and CSS Grid/Flexbox for a premium dashboard feel.
+- **State Management:** Reactive state patterns for real-time synchronization between the AI brain and the 3D scene.
 
 ## ⚙️ Getting Started
 
