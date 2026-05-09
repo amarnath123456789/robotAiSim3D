@@ -10,6 +10,10 @@ To bridge the semantic gap between high-level human intent and low-level robotic
 
 The core philosophy revolves around **Autonomous Reasoning (Chain of Thought)** and **Dynamic Skill Invention**. Instead of being hardcoded with Every possible action, the robot "thinks" through problems, plans its steps, and can even write its own JavaScript code to perform new tasks it hasn't seen before.
 
+## 🎬 Demo
+
+*(Screenshots and GIFs coming soon!)*
+
 ## 🧠 Key Features
 
 - **Chain of Thought (CoT):** The robot mimics human reasoning by breaking down complex instructions into intermediate logical steps, visible in real-time within the UI.
