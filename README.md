@@ -22,7 +22,20 @@ The core philosophy revolves around **Autonomous Reasoning (Chain of Thought)** 
 - **Memory & Feedback Loop:** Every action, success, and failure is logged in a **Memory Log**. The agent reflects on these logs to optimize its future planning and skill selection.
 - **Premium 3D Visuals:** A sleek, dark-themed dashboard using **Three.js** with real-time status monitoring, dynamic lighting, and a responsive glassmorphic UI.
 
-## 🔭 Project Scope
+## 🏗️ Architecture
+
+```mermaid
+graph TD
+    User([User Instruction]) --> LLM[Gemini AI - Brain]
+    LLM --> CoT[Chain of Thought Planning]
+    CoT --> SkillRegistry{Skill Registry}
+    SkillRegistry -- Found --> Exec[Execute Skill]
+    SkillRegistry -- Missing --> CodeGen[Generate New JavaScript Skill]
+    CodeGen --> Exec
+    Exec --> Physics[Rapier3D Physics Engine]
+    Physics --> Feedback[Memory & State Update]
+    Feedback --> LLM
+```
 
 The project currently focuses on indoor navigation and basic object manipulation within a bounded 3D space:
 - **Environment:** A 3x3 bounded room with floor physics and various interactable objects (balls, boxes, etc.).
