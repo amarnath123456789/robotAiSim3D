@@ -90,7 +90,11 @@ The ultimate goal of **robotAiSim3D** is to create a fully autonomous agent capa
    npm run dev
    ```
 
-## 🤝 Contributing
+## 🔧 Troubleshooting
+
+- **Black Screen on Load:** Ensure your browser supports WebGL 2.0. Check the console for any Three.js initialization errors.
+- **Robot Not Responding:** Verify your `VITE_GEMINI_API_KEY` is correct and has not reached its rate limit.
+- **Physics Glitches:** If objects pass through walls, try refreshing the page to reset the Rapier3D world state.
 
 Contributions are welcome! If you have ideas for new robot skills, environment improvements, or better LLM prompt strategies:
 
