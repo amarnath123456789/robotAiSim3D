@@ -164,14 +164,34 @@ export function navigateTo(tx, ty, tz, onArrived, speed = 2.5, excludeIds = null
   // Ensure final waypoint is exactly the target
   waypoints[waypoints.length - 1] = { x: tx, y: targetY, z: tz }
 
+  // --- PATH VISUALIZER ---
+  const points = [new THREE.Vector3(startPos.x, startPos.y, startPos.z)]
+  waypoints.forEach(wp => points.push(new THREE.Vector3(wp.x, wp.y, wp.z)))
+  
+  const pathGeo = new THREE.BufferGeometry().setFromPoints(points)
+  const pathMat = new THREE.LineDashedMaterial({ color: 0x00ffff, dashSize: 0.2, gapSize: 0.1 })
+  const currentPathLine = new THREE.Line(pathGeo, pathMat)
+  currentPathLine.computeLineDistances()
+  currentPathLine.position.y += 0.05 // Raise slightly to avoid z-fighting
+  state.scene.three.add(currentPathLine)
+
   let wpIndex = 0
   let cancelled = false
+
+  const clearPath = () => {
+    if (currentPathLine.parent) {
+      state.scene.three.remove(currentPathLine)
+      currentPathLine.geometry.dispose()
+      currentPathLine.material.dispose()
+    }
+  }
 
   const interval = setInterval(() => {
     if (cancelled) return
 
     if (wpIndex >= waypoints.length) {
       clearInterval(interval)
+      clearPath()
       onArrived?.()
       return
     }
@@ -193,7 +213,7 @@ export function navigateTo(tx, ty, tz, onArrived, speed = 2.5, excludeIds = null
     setRobotPos(p.x + dx * n, p.y + dy * n, p.z + dz * n)
   }, 16)
 
-  return () => { cancelled = true; clearInterval(interval) }
+  return () => { cancelled = true; clearInterval(interval); clearPath() }
 }
 
 // Instant teleport (for jumps/special moves)
