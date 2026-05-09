@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { state, getRobotPos, setRobotPos } from './state.js'
+import { findPath } from './pathfinder.js'
 
 const loader = new GLTFLoader()
 let root, armMesh, handMesh, eyeMesh
@@ -143,31 +144,56 @@ export function updateDebugRobot(delta) {
   }
 }
 
-// Navigation — move robot to world position over time
-export function navigateTo(x, y, z, onArrived, speed = 2.5) {
-  const FLOAT_Y = 0.35  // robot sits on the ground at this height
-  const interval = setInterval(() => {
-    const p = getRobotPos()
-    const tx = x
-    const ty = FLOAT_Y  // ignore Y from caller, always on ground
-    const tz = z
-    const dx = tx - p.x
-    const dy = ty - p.y
-    const dz = tz - p.z
-    const dist = Math.sqrt(dx*dx + dy*dy + dz*dz)
+// Navigation — A* pathfinding from current position to target
+export function navigateTo(tx, ty, tz, onArrived, speed = 2.5) {
+  const FLOOR_Y = 0.35
+  const targetY = FLOOR_Y
 
-    if (dist < 0.12) {
+  // Get held object ids to exclude from obstacle grid
+  const excludeIds = state.robot.heldObject ? [state.robot.heldObject] : []
+
+  // Compute path
+  const startPos = getRobotPos()
+  const path = findPath(startPos.x, startPos.z, tx, tz, excludeIds)
+
+  // Fallback: straight line if pathfinder fails (open space)
+  const waypoints = path
+    ? path.map(wp => ({ x: wp.x, y: targetY, z: wp.z }))
+    : [{ x: tx, y: targetY, z: tz }]
+
+  // Ensure final waypoint is exactly the target
+  waypoints[waypoints.length - 1] = { x: tx, y: targetY, z: tz }
+
+  let wpIndex = 0
+  let cancelled = false
+
+  const interval = setInterval(() => {
+    if (cancelled) return
+
+    if (wpIndex >= waypoints.length) {
       clearInterval(interval)
       onArrived?.()
       return
     }
 
+    const wp = waypoints[wpIndex]
+    const p  = getRobotPos()
+    const dx = wp.x - p.x
+    const dy = wp.y - p.y
+    const dz = wp.z - p.z
+    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
+
+    if (dist < 0.1) {
+      wpIndex++
+      return
+    }
+
     const step = Math.min(speed * 0.016, dist)
-    const n = step / dist
-    setRobotPos(p.x + dx*n, p.y + dy*n, p.z + dz*n)
+    const n    = step / dist
+    setRobotPos(p.x + dx * n, p.y + dy * n, p.z + dz * n)
   }, 16)
 
-  return () => clearInterval(interval)
+  return () => { cancelled = true; clearInterval(interval) }
 }
 
 // Instant teleport (for jumps/special moves)
