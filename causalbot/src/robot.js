@@ -145,16 +145,16 @@ export function updateDebugRobot(delta) {
 }
 
 // Navigation — A* pathfinding from current position to target
-export function navigateTo(tx, ty, tz, onArrived, speed = 2.5) {
+export function navigateTo(tx, ty, tz, onArrived, speed = 2.5, excludeIds = null) {
   const FLOOR_Y = 0.35
   const targetY = FLOOR_Y
 
   // Get held object ids to exclude from obstacle grid
-  const excludeIds = state.robot.heldObject ? [state.robot.heldObject] : []
+  const finalExcludeIds = excludeIds || (state.robot.heldObject ? [state.robot.heldObject] : [])
 
   // Compute path
   const startPos = getRobotPos()
-  const path = findPath(startPos.x, startPos.z, tx, tz, excludeIds)
+  const path = findPath(startPos.x, startPos.z, tx, tz, finalExcludeIds)
 
   // Fallback: straight line if pathfinder fails (open space)
   const waypoints = path
