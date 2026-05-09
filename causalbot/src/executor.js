@@ -10,7 +10,8 @@ import { showThoughts, clearThoughts } from './ui.js'
 function buildContext(instruction) {
   return {
     navigateTo: (x, y, z, speed) => new Promise(resolve => {
-      navigateTo(x, y, z, resolve, speed)
+      const excludeIds = state.robot.heldObject ? [state.robot.heldObject] : []
+      navigateTo(x, y, z, resolve, speed, excludeIds)
     }),
 
     setPos: (x, y, z) => setRobotPos(x, y, z),
