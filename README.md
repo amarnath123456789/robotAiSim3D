@@ -1,6 +1,6 @@
-# robotAiSim3D — CausalBot
+# 🤖 robotAiSim3D — CausalBot
 
-A futuristic, LLM-powered 3D robot simulation framework designed to explore autonomous robotic reasoning, dynamic skill acquisition, and physics-based task execution.
+An advanced, LLM-orchestrated 3D robotic simulation framework designed to explore autonomous reasoning, dynamic skill acquisition, and physics-based task execution in real-time.
 
 ## 🚀 Project Idea
 
