@@ -131,14 +131,39 @@ export function updateRobot(delta) {
 export function updateDebugRobot(delta) {
   if (!debugRoot) return
 
-  const p = state.debugRobot.position
-  const r = state.debugRobot.rotation
+  const p        = state.debugRobot.position
+  const moveDir  = state.debugRobot._moveDir
+  const speed    = state.debugRobot._speed    || 0
+  const grounded = state.debugRobot._grounded ?? true
+  const MAX_SPD  = 5.5  // mirror of physics MAX_SPEED
 
-  // Immediate sync for debug robot (physics driven)
+  // ── Direct position sync (physics-driven, no lag) ──
   debugRoot.position.set(p[0], p[1], p[2])
-  debugRoot.rotation.y = r
 
-  // Debug Robot Eye pulse (distinct)
+  // ── Smooth rotation: lerp toward movement direction (shortest-path) ──
+  if (moveDir && speed > 0.4) {
+    const targetAngle = Math.atan2(moveDir.x, moveDir.z)
+    let diff = targetAngle - debugRoot.rotation.y
+    // Wrap to [-PI, PI]
+    while (diff >  Math.PI) diff -= Math.PI * 2
+    while (diff < -Math.PI) diff += Math.PI * 2
+    // Turn speed scales with movement speed for feel (fast input = fast turn)
+    const turnSpeed = 10 + (speed / MAX_SPD) * 8
+    debugRoot.rotation.y += diff * Math.min(1.0, delta * turnSpeed)
+  }
+
+  // ── Forward lean proportional to ground speed ──
+  const leanTarget = grounded ? Math.min(speed / MAX_SPD, 1) * 0.13 : 0
+  debugRoot.rotation.x = THREE.MathUtils.lerp(debugRoot.rotation.x, leanTarget, delta * 10)
+
+  // ── Running bob (only on ground, only when moving) ──
+  if (grounded && speed > 0.5) {
+    const bobFreq = speed * 4.5   // faster run = faster bob
+    const bobAmt  = Math.sin(performance.now() * 0.001 * bobFreq) * 0.012 * (speed / MAX_SPD)
+    debugRoot.position.y = p[1] + bobAmt
+  }
+
+  // ── Debug Robot Eye pulse ──
   if (debugEyeMesh?.material) {
     const m = Array.isArray(debugEyeMesh.material) ? debugEyeMesh.material[0] : debugEyeMesh.material
     m.emissiveIntensity = 1.0 + Math.sin(performance.now() * 0.005) * 0.3

@@ -132,7 +132,7 @@ export async function initPhysics() {
       .setGravityScale(1.0)
       .setCcdEnabled(true)
   )
-  debugBody.lockRotations(true, true)  // stay upright
+  debugBody.setEnabledRotations(false, false, false, true)  // lock all physics rotations — visual layer handles turning
 
   const dbCollider = getBestCollider('debugRobot', RAPIER.ColliderDesc.capsule(0.15, 0.1))
   dbCollider.setFriction(0.0).setRestitution(0.0)
@@ -274,16 +274,14 @@ function _isGrounded(body) {
 export function stepDebugRobotPhysics(keys, delta) {
   if (!debugBody || state.controlMode !== 'debug') return
 
-  const vel        = debugBody.linvel()
-  const grounded   = _isGrounded(debugBody)
+  const vel      = debugBody.linvel()
+  const grounded = _isGrounded(debugBody)
 
   // ── Coyote time ──
   if (grounded) {
     charCtrl.coyoteTimer = COYOTE_TIME
-    charCtrl.isGrounded  = true
   } else {
     charCtrl.coyoteTimer = Math.max(0, charCtrl.coyoteTimer - delta)
-    charCtrl.isGrounded  = false
   }
 
   // ── Jump buffer ──
@@ -293,12 +291,12 @@ export function stepDebugRobotPhysics(keys, delta) {
     charCtrl.jumpBuffer = Math.max(0, charCtrl.jumpBuffer - delta)
   }
 
-  // ── Gather input direction ──
-  const camera  = state.scene.camera
-  let inputDir  = new THREE.Vector3()
+  // ── Camera-relative input direction ──
+  const camera   = state.scene.camera
+  const inputDir = new THREE.Vector3()
 
   if (camera) {
-    const fwd   = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion)
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion)
     fwd.y = 0
     if (fwd.lengthSq() > 0.0001) fwd.normalize(); else fwd.set(0, 0, -1)
 
@@ -306,8 +304,8 @@ export function stepDebugRobotPhysics(keys, delta) {
     right.y = 0
     if (right.lengthSq() > 0.0001) right.normalize(); else right.set(1, 0, 0)
 
-    if (keys.w) inputDir.addScaledVector(fwd,   1)
-    if (keys.s) inputDir.addScaledVector(fwd,  -1)
+    if (keys.w) inputDir.addScaledVector(fwd,    1)
+    if (keys.s) inputDir.addScaledVector(fwd,   -1)
     if (keys.a) inputDir.addScaledVector(right, -1)
     if (keys.d) inputDir.addScaledVector(right,  1)
   } else {
@@ -320,61 +318,51 @@ export function stepDebugRobotPhysics(keys, delta) {
   const hasInput = inputDir.lengthSq() > 0.0001
   if (hasInput) inputDir.normalize()
 
-  // ── Horizontal force-based movement ──
-  const forceScale  = grounded ? MOVE_FORCE : AIR_FORCE
-  const velXZ       = new THREE.Vector3(vel.x, 0, vel.z)
-  const speedXZ     = velXZ.length()
-
-  let fx = 0, fz = 0
-
-  if (hasInput) {
-    // Accelerate toward desired direction
-    fx = inputDir.x * forceScale
-    fz = inputDir.z * forceScale
-
-    // Clamp to max speed — only cancel force in the moving direction
-    if (speedXZ > MAX_SPEED) {
-      const over = speedXZ - MAX_SPEED
-      fx -= (vel.x / speedXZ) * over * forceScale * 0.5
-      fz -= (vel.z / speedXZ) * over * forceScale * 0.5
+  // ── Horizontal movement ──
+  if (grounded) {
+    // DIRECT VELOCITY SET — instant, snappy, game-like (no force accumulation)
+    const targetVX = hasInput ? inputDir.x * MAX_SPEED : 0
+    const targetVZ = hasInput ? inputDir.z * MAX_SPEED : 0
+    // Small lerp factor (~15 frames to full speed) — feels responsive but not teleport
+    const snap = Math.min(1.0, delta * 22)
+    const newVX = vel.x + (targetVX - vel.x) * snap
+    const newVZ = vel.z + (targetVZ - vel.z) * snap
+    debugBody.setLinvel({ x: newVX, y: vel.y, z: newVZ }, true)
+  } else {
+    // AIR: force-based with reduced authority — preserves momentum
+    if (hasInput) {
+      debugBody.addForce({ x: inputDir.x * AIR_FORCE, y: 0, z: inputDir.z * AIR_FORCE }, true)
     }
-  } else if (grounded) {
-    // Braking force
-    fx = -vel.x * DECEL_FORCE
-    fz = -vel.z * DECEL_FORCE
+    // Clamp horizontal air speed to max
+    const airSpeedXZ = Math.sqrt(vel.x * vel.x + vel.z * vel.z)
+    if (airSpeedXZ > MAX_SPEED) {
+      const scale = MAX_SPEED / airSpeedXZ
+      debugBody.setLinvel({ x: vel.x * scale, y: vel.y, z: vel.z * scale }, true)
+    }
+    // Variable jump height: extra downward pull when space released mid-jump
+    // GRAVITY is -18, so GRAVITY * 1.5 = -27 (correctly downward)
+    if (!keys.space && vel.y > 0.5) {
+      debugBody.addForce({ x: 0, y: GRAVITY * 1.5, z: 0 }, true)
+    }
   }
-  // In air with no input: no extra drag (physics handles it)
 
-  debugBody.addForce({ x: fx, y: 0, z: fz }, true)
-
-  // ── Jump (with coyote + buffer) ──
+  // ── Jump: fires when buffer + coyote time both valid ──
   if (charCtrl.jumpBuffer > 0 && charCtrl.coyoteTimer > 0) {
-    debugBody.setLinvel({ x: vel.x, y: JUMP_VEL, z: vel.z }, true)
-    charCtrl.coyoteTimer  = 0
-    charCtrl.jumpBuffer   = 0
+    const v = debugBody.linvel()
+    debugBody.setLinvel({ x: v.x, y: JUMP_VEL, z: v.z }, true)
+    charCtrl.coyoteTimer = 0
+    charCtrl.jumpBuffer  = 0
   }
 
-  // ── Variable jump height: cut vertical velocity if space released early ──
-  if (!keys.space && vel.y > 2.0 && !grounded) {
-    debugBody.addForce({ x: 0, y: -GRAVITY * 0.8, z: 0 }, true)
-  }
-
-  // ── Face movement direction (only when moving) ──
-  if (hasInput && speedXZ > 0.3) {
-    const angle = Math.atan2(inputDir.x, inputDir.z)
-    debugBody.setRotation(
-      { x: 0, y: Math.sin(angle / 2), z: 0, w: Math.cos(angle / 2) },
-      true
-    )
-  }
-
-  // ── Sync back to state ──
-  const t = debugBody.translation()
-  const r = debugBody.rotation()
-  state.debugRobot.position[0] = t.x
-  state.debugRobot.position[1] = t.y
-  state.debugRobot.position[2] = t.z
-  state.debugRobot.rotation    = 2 * Math.atan2(r.y, r.w)
+  // ── Write position + movement hints to state (visual layer reads these) ──
+  const t    = debugBody.translation()
+  const spdXZ = Math.sqrt(vel.x * vel.x + vel.z * vel.z)
+  state.debugRobot.position[0]  = t.x
+  state.debugRobot.position[1]  = t.y
+  state.debugRobot.position[2]  = t.z
+  state.debugRobot._moveDir     = hasInput ? { x: inputDir.x, z: inputDir.z } : null
+  state.debugRobot._speed       = spdXZ
+  state.debugRobot._grounded    = grounded
 }
 
 // ─── AI robot pushes dynamic objects on proximity contact ────────────────────
