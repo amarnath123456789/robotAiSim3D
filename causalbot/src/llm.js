@@ -4,9 +4,9 @@ import { getAllSkillNames, hasSkill } from './skillRegistry.js'
 import { getObjectsForPlanner } from './perception/perceptionMode.js'
 import { setStatus, setAgentStatus } from './ui.js'
 
-const API_KEY = import.meta.env.VITE_OPENAI_API_KEY
-const API_URL = 'https://api.openai.com/v1/chat/completions'
-const MODEL = import.meta.env.VITE_OPENAI_MODEL || 'gpt-4o-mini'
+const API_KEY = import.meta.env.VITE_NVIDIA_API_KEY
+const API_URL = '/api/nvidia/chat/completions'
+const MODEL = import.meta.env.VITE_NVIDIA_MODEL || 'google/gemma-4-31b-it'
 
 // ─── Minimal world snapshot — only what the LLM needs ────────────────────────
 
@@ -212,7 +212,7 @@ Animation rules:
 
 async function callLLM(prompt, maxTokens = 512) {
   if (!API_KEY) {
-    throw new Error('VITE_OPENAI_API_KEY is not set in .env')
+    throw new Error('VITE_NVIDIA_API_KEY is not set in .env')
   }
 
   const res = await fetch(API_URL, {
@@ -238,7 +238,7 @@ async function callLLM(prompt, maxTokens = 512) {
 
   const data = await res.json()
   const text = data.choices?.[0]?.message?.content || ''
-  
+
   if (data.usage?.finish_reason === 'length') console.warn('Response cut off')
   console.log('LLM raw:', text)
   return text
