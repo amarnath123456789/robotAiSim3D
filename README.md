@@ -16,11 +16,11 @@ The core philosophy revolves around **Autonomous Reasoning (Chain of Thought)** 
 
 ## 🧠 Key Features
 
-- **Chain of Thought (CoT):** The robot mimics human reasoning by breaking down complex instructions into intermediate logical steps, visible in real-time within the UI.
-- **Dynamic Skill Invention:** When faced with a task beyond its current capability, the robot uses an LLM (Gemini) to generate and "invent" new JavaScript skills, which are tested and saved to a persistent **Skill Registry**.
-- **Physics-Driven Execution:** Built with **Rapier3D**, the simulation ensures that every movement, collision, and object interaction follows realistic physical laws.
-- **Memory & Feedback Loop:** Every action is logged in a **Memory Log**. Successes and failures inform future decisions, creating a basic learning cycle.
-- **Premium 3D Visuals:** A sleek, dark-themed dashboard using **Three.js** with real-time status monitoring, eye-color state indicators, and floating UI elements.
+- **Chain of Thought (CoT):** The robot mimics human reasoning by breaking down complex instructions into intermediate logical steps, visible in real-time within the UI. This allows for transparent debugging of the agent's thought process.
+- **Dynamic Skill Invention:** When faced with a task beyond its current capability, the robot uses an LLM (Gemini) to generate and "invent" new JavaScript skills. These scripts are dynamically loaded, executed in the physics environment, and saved to a persistent **Skill Registry**.
+- **Physics-Driven Execution:** Built with **Rapier3D**, the simulation ensures that every movement, collision, and object interaction follows realistic physical laws, providing high-fidelity feedback to the AI.
+- **Memory & Feedback Loop:** Every action, success, and failure is logged in a **Memory Log**. The agent reflects on these logs to optimize its future planning and skill selection.
+- **Premium 3D Visuals:** A sleek, dark-themed dashboard using **Three.js** with real-time status monitoring, dynamic lighting, and a responsive glassmorphic UI.
 
 ## 🔭 Project Scope
 
