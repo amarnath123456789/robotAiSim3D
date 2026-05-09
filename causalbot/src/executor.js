@@ -74,8 +74,11 @@ export async function handleInstruction(instruction) {
     if (!plan) { state.execution.running = false; return }
 
     console.log('Plan:', plan)
-    if (plan.thoughts) showThoughts(plan.thoughts)
-    else if (plan.thought) showThoughts([plan.thought])
+    const thoughts = []
+    if (plan.reasoning) thoughts.push(`🧠 ${plan.reasoning}`)
+    if (plan.thoughts?.length) thoughts.push(...plan.thoughts)
+    if (plan.goal) thoughts.push(`🎯 Goal: ${plan.goal}`)
+    if (thoughts.length) showThoughts(thoughts)
 
     // Step 2 — if new skill needed, invent it
     if (plan.needsNewSkill && plan.newSkillName) {
