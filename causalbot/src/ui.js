@@ -56,3 +56,32 @@ export function clearThoughts() {
   if (sidebar) sidebar.classList.remove('visible')
   if (list) list.innerHTML = ''
 }
+
+export function setStatus(text) {
+  const el = document.getElementById('status-bar')
+  if (el) el.textContent = text
+}
+
+/**
+ * Update the floating agent status bubble
+ * @param {string} text - The message to show
+ * @param {'thinking'|'navigating'|'scanning'|'error'|'success'} type - The visual style
+ */
+export function setAgentStatus(text, type = 'thinking') {
+  const el = document.getElementById('agent-status')
+  const textEl = document.getElementById('agent-status-text')
+  if (!el || !textEl) return
+
+  if (!text) {
+    el.classList.remove('visible')
+    return
+  }
+
+  // Remove existing state classes
+  el.classList.remove('thinking', 'navigating', 'scanning', 'error', 'success')
+  
+  // Add new type class
+  el.classList.add(type)
+  textEl.textContent = text
+  el.classList.add('visible')
+}

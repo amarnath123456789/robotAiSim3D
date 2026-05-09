@@ -59,8 +59,8 @@ const BUILTIN_SKILLS = {
   },
   scan_room: {
     name: 'scan_room',
-    code: `if (context.isVisionMode && context.fullScan) { const found = await context.fullScan(); context.setStatus('Scan complete. Found ' + found.length + ' objects.'); } else { context.setStatus('scan_room only works in vision mode.'); }`,
-    fn: (context) => { const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor; return new AsyncFunction('context', `if (context.isVisionMode && context.fullScan) { const found = await context.fullScan(); context.setStatus('Scan complete. Found ' + found.length + ' objects.'); } else { context.setStatus('scan_room only works in vision mode.'); }`)(context) }
+    code: `if (context.fullScan) { const found = await context.fullScan(); context.setStatus('Scan complete. Found ' + found.length + ' objects.'); } else { context.setStatus('Scan unavailable.'); }`,
+    fn: (context) => { const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor; return new AsyncFunction('context', `if (context.fullScan) { const found = await context.fullScan(); context.setStatus('Scan complete. Found ' + found.length + ' objects.'); } else { context.setStatus('Scan unavailable.'); }`)(context) }
   },
 }
 

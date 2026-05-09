@@ -4,7 +4,7 @@ import { releaseObjectPhysics } from './physics.js'
 import { remember } from './memory.js'
 import { getSkill, registerSessionSkill, approveSkill, rejectSkill, getAllSkillNames } from './skillRegistry.js'
 import { planInstruction, inventSkill } from './llm.js'
-import { showThoughts, clearThoughts } from './ui.js'
+import { showThoughts, clearThoughts, setStatus, setAgentStatus } from './ui.js'
 import { ensureWorldModel, getVisionContextAdditions, resolveObject } from './perception/perceptionMode.js'
 
 // The context object passed to every skill function
@@ -135,6 +135,7 @@ export async function handleInstruction(instruction) {
       }
 
       setStatus(`${action.description || action.skill}...`)
+      setAgentStatus(`${action.description || action.skill}...`, 'navigating')
       console.log('Running skill:', action.skill, action.args)
 
       // Vision mode: resolve target by scanning if needed
@@ -177,6 +178,8 @@ export async function handleInstruction(instruction) {
     state.robot.eyeColor = 0x4488ff
     remember(instruction, 'success', plan.plan)
     setStatus('Done.')
+    setAgentStatus('Goal completed', 'success')
+    setTimeout(() => setAgentStatus(null), 3000)
 
   } catch (e) {
     console.error('Execution error:', e)
@@ -184,6 +187,8 @@ export async function handleInstruction(instruction) {
     state.robot.eyeColor = 0xff3333
     remember(instruction, 'fail', e.message)
     setStatus('Something went wrong.')
+    setAgentStatus('Execution error', 'error')
+    setTimeout(() => setAgentStatus(null), 5000)
   }
 
   state.execution.running = false
@@ -207,10 +212,7 @@ function showApprovalUI(skillName) {
     rejectSkill(skillName)
     panel.classList.remove('visible')
     setStatus(`Skill "${skillName}" discarded.`)
+    setAgentStatus(`Skill discarded`, 'error')
+    setTimeout(() => setAgentStatus(null), 3000)
   }
-}
-
-function setStatus(text) {
-  const el = document.getElementById('status-bar')
-  if (el) el.textContent = text
 }

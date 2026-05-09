@@ -3,6 +3,7 @@ import { fullRoomScan, scanForObject, approachObject, getFacingAngle, lookAt } f
 import { getPerceivedSnapshot, findPerceivedObject, clearPerception, perceivedToTarget } from './perceptualMemory.js'
 import { castVision } from './visionSensor.js'
 import { updatePerception } from './perceptualMemory.js'
+import { setStatus, setAgentStatus } from '../ui.js'
 
 // ─── Mode state ───────────────────────────────────────────────────────────────
 
@@ -133,10 +134,6 @@ function updateModeIndicator() {
     : '0 0 8px rgba(68,136,255,0.4)'
 }
 
-function setStatus(text) {
-  const el = document.getElementById('status-bar')
-  if (el) el.textContent = text
-}
 
 // Kick off indicator on load (so it reflects persisted state)
 if (typeof document !== 'undefined') {

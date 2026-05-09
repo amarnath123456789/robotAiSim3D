@@ -1,6 +1,7 @@
 import { state, getRobotPos, setRobotPos } from '../state.js'
 import { castVision, angleToTarget, isInFOV, normalizeAngle } from './visionSensor.js'
 import { updatePerception, findPerceivedObject, getPerceivedSnapshot, perceivedToTarget } from './perceptualMemory.js'
+import { setStatus, setAgentStatus } from '../ui.js'
 
 const SCAN_STEP_MS    = 60     // ms between rotation steps
 const SCAN_STEP_RAD   = 0.20   // radians rotated per step (~11.5°)
@@ -77,6 +78,7 @@ export async function rotateTo(targetAngle, onStep) {
  */
 export async function fullRoomScan(onProgress) {
   setStatus('🔍 Scanning room...')
+  setAgentStatus('Scanning environment', 'scanning')
   const startAngle = getFacingAngle()
 
   for (let i = 0; i <= FULL_SCAN_STEPS; i++) {
@@ -89,6 +91,7 @@ export async function fullRoomScan(onProgress) {
     const perceived = getPerceivedSnapshot()
     if (perceived.length > 0) {
       setStatus(`🔍 Scanning... ${perceived.length} object(s) found`)
+      setAgentStatus(`Scanning... ${perceived.length} found`, 'scanning')
     }
 
     onProgress?.(perceived, angle)
@@ -97,9 +100,10 @@ export async function fullRoomScan(onProgress) {
 
   // Return to original facing
   setFacingAngle(startAngle)
-
   const final = getPerceivedSnapshot()
   setStatus(`✅ Scan complete. Found ${final.length} object(s).`)
+  setAgentStatus(`Scan complete: ${final.length} found`, 'success')
+  setTimeout(() => setAgentStatus(null), 3000)
   return final
 }
 
@@ -113,11 +117,13 @@ export async function fullRoomScan(onProgress) {
 export async function scanForObject(nameOrId) {
   const label = nameOrId.toLowerCase()
   setStatus(`👁 Looking for "${nameOrId}"...`)
+  setAgentStatus(`Searching for ${nameOrId}`, 'scanning')
 
   // Check memory first — if confident, skip physical scan
   const existing = findPerceivedObject(label)
   if (existing && existing.confidence > 0.5) {
     setStatus(`✅ I remember seeing ${existing.name}.`)
+    setAgentStatus(`Found ${existing.name} (memory)`, 'success')
     return existing
   }
 
@@ -134,6 +140,7 @@ export async function scanForObject(nameOrId) {
     const found = findPerceivedObject(label)
     if (found && found.confidence > 0.35) {
       setStatus(`✅ Found ${found.name}!`)
+      setAgentStatus(`Found ${found.name}!`, 'success')
       // Rotate to face it
       const faceAngle = angleToTarget(found.estimatedPos)
       await rotateTo(faceAngle)
@@ -146,6 +153,8 @@ export async function scanForObject(nameOrId) {
   // Return to start
   setFacingAngle(startAngle)
   setStatus(`❌ Could not find "${nameOrId}".`)
+  setAgentStatus(`Object not found: ${nameOrId}`, 'error')
+  setTimeout(() => setAgentStatus(null), 5000)
   return null
 }
 
@@ -162,6 +171,7 @@ export async function approachObject(perceivedObj, stopDistance = 0.35) {
   const [tx, ty, tz] = perceivedObj.estimatedPos
 
   setStatus(`🚶 Approaching ${perceivedObj.name}...`)
+  setAgentStatus(`Navigating to ${perceivedObj.name}`, 'navigating')
 
   return new Promise(resolve => {
     navigateTo(tx, 0.35, tz, () => resolve(true), 2.5)
@@ -184,7 +194,3 @@ function sleep(ms) {
   return new Promise(r => setTimeout(r, ms))
 }
 
-function setStatus(text) {
-  const el = document.getElementById('status-bar')
-  if (el) el.textContent = text
-}

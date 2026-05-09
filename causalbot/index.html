@@ -95,6 +95,53 @@
       #instruction::placeholder { color: #444; }
       #instruction:focus { border-color: rgba(255,255,255,0.4); }
       #instruction:disabled { opacity: 0.4; }
+      
+      #agent-status {
+        position: absolute;
+        bottom: 70px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 11px;
+        color: #fff;
+        background: rgba(0,0,0,0.7);
+        border: 1px solid rgba(255,255,255,0.1);
+        display: none;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.3s;
+        z-index: 100;
+        backdrop-filter: blur(4px);
+      }
+      
+      #agent-status.visible { display: flex; }
+      #agent-status .dot { width: 6px; height: 6px; border-radius: 50%; background: #fff; }
+      
+      /* State types */
+      #agent-status.thinking { border-color: #FAC775; color: #FAC775; }
+      #agent-status.thinking .dot { background: #FAC775; box-shadow: 0 0 5px #FAC775; animation: pulse 1s infinite; }
+      
+      #agent-status.navigating { border-color: #4488ff; color: #4488ff; }
+      #agent-status.navigating .dot { background: #4488ff; box-shadow: 0 0 5px #4488ff; }
+      
+      #agent-status.scanning { border-color: #c084fc; color: #c084fc; }
+      #agent-status.scanning .dot { background: #c084fc; box-shadow: 0 0 5px #c084fc; animation: rotate 2s linear infinite; }
+      
+      #agent-status.error { border-color: #E24B4A; color: #E24B4A; }
+      #agent-status.error .dot { background: #E24B4A; }
+
+      #agent-status.success { border-color: #1D9E75; color: #1D9E75; }
+      #agent-status.success .dot { background: #1D9E75; }
+
+      @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.5; transform: scale(1.2); }
+      }
+      @keyframes rotate {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
 
       #approve-panel {
         position: absolute;
@@ -278,6 +325,10 @@
       </div>
 
       <div id="input-wrap">
+        <div id="agent-status">
+          <div class="dot"></div>
+          <span id="agent-status-text"></span>
+        </div>
         <input id="instruction" type="text" placeholder="tell the robot what to do..." />
       </div>
 

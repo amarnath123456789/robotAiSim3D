@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { state, getRobotPos, setRobotPos } from './state.js'
 import { findPath } from './pathfinder.js'
+import { setStatus, setAgentStatus } from './ui.js'
 
 const loader = new GLTFLoader()
 let root, armMesh, handMesh, eyeMesh
@@ -154,6 +155,7 @@ export function navigateTo(tx, ty, tz, onArrived, speed = 2.5, excludeIds = null
 
   // Compute path
   const startPos = getRobotPos()
+  setAgentStatus('Computing path...', 'thinking')
   const path = findPath(startPos.x, startPos.z, tx, tz, finalExcludeIds)
 
   // Fallback: straight line if pathfinder fails (open space)
@@ -192,6 +194,7 @@ export function navigateTo(tx, ty, tz, onArrived, speed = 2.5, excludeIds = null
     if (wpIndex >= waypoints.length) {
       clearInterval(interval)
       clearPath()
+      setAgentStatus(null)
       onArrived?.()
       return
     }

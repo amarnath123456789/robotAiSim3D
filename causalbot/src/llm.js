@@ -2,9 +2,11 @@ import { state, getObject, getRobotPos } from './state.js'
 import { getMemorySummary } from './memory.js'
 import { getAllSkillNames, hasSkill } from './skillRegistry.js'
 import { getObjectsForPlanner } from './perception/perceptionMode.js'
+import { setStatus, setAgentStatus } from './ui.js'
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`
+const API_KEY = import.meta.env.VITE_OPENAI_API_KEY
+const API_URL = 'https://api.openai.com/v1/chat/completions'
+const MODEL = import.meta.env.VITE_OPENAI_MODEL || 'gpt-4o-mini'
 
 // ─── Minimal world snapshot — only what the LLM needs ────────────────────────
 
@@ -58,6 +60,7 @@ function tryDirectMatch(instruction) {
 
 export async function planInstruction(instruction) {
   setStatus('Thinking...')
+  setAgentStatus('Thinking about ' + instruction, 'thinking')
   state.robot.eyeColor = 0xffaa00
   state.robot.status = 'thinking'
 
@@ -140,12 +143,13 @@ Respond ONLY with valid JSON (no markdown, no code blocks):
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const raw = await callGemini(prompt, 512)
+      const raw = await callLLM(prompt, 512)
       const json = extractJSON(raw)
       const plan = JSON.parse(json)
 
       if (plan.impossible) {
         setStatus(plan.impossibleReason || 'Cannot do that.')
+        setAgentStatus(plan.impossibleReason || 'Impossible goal', 'error')
         state.robot.status = 'idle'
         state.robot.eyeColor = 0x4488ff
         return null
@@ -160,6 +164,7 @@ Respond ONLY with valid JSON (no markdown, no code blocks):
         state.robot.status = 'failed'
         state.robot.eyeColor = 0xff3333
         setStatus('Could not understand.')
+        setAgentStatus('LLM processing error', 'error')
         return null
       }
       await sleep(200)
@@ -171,6 +176,7 @@ Respond ONLY with valid JSON (no markdown, no code blocks):
 
 export async function inventSkill(skillName, instruction, existingSkills) {
   setStatus(`Inventing: ${skillName}...`)
+  setAgentStatus(`Inventing skill: ${skillName}`, 'thinking')
 
   const rp = getRobotPos()
   const objects = Object.values(state.world.objects)
@@ -193,7 +199,7 @@ Animation rules:
 - Max 20 lines, no comments, pure JS body only`
 
   try {
-    const raw = await callGemini(prompt, 400)
+    const raw = await callLLM(prompt, 400)
     const code = raw.replace(/```javascript|```js|```/gi, '').trim()
     return code
   } catch (e) {
@@ -202,19 +208,26 @@ Animation rules:
   }
 }
 
-// ─── Gemini caller ────────────────────────────────────────────────────────────
+// ─── LLM caller ────────────────────────────────────────────────────────────
 
-async function callGemini(prompt, maxTokens = 512) {
-  const res = await fetch(`${API_URL}?key=${API_KEY}`, {
+async function callLLM(prompt, maxTokens = 512) {
+  if (!API_KEY) {
+    throw new Error('VITE_OPENAI_API_KEY is not set in .env')
+  }
+
+  const res = await fetch(API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${API_KEY}`
+    },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: maxTokens,
-        candidateCount: 1,
-      }
+      model: MODEL,
+      messages: [
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.1,
+      max_tokens: maxTokens,
     })
   })
 
@@ -224,9 +237,9 @@ async function callGemini(prompt, maxTokens = 512) {
   }
 
   const data = await res.json()
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
-  const finishReason = data.candidates?.[0]?.finishReason
-  if (finishReason === 'MAX_TOKENS') console.warn('Response cut off')
+  const text = data.choices?.[0]?.message?.content || ''
+  
+  if (data.usage?.finish_reason === 'length') console.warn('Response cut off')
   console.log('LLM raw:', text)
   return text
 }
@@ -241,10 +254,6 @@ function extractJSON(text) {
   return clean.slice(start, end + 1)
 }
 
-function setStatus(text) {
-  const el = document.getElementById('status-bar')
-  if (el) el.textContent = text
-}
 
 function sleep(ms) {
   return new Promise(r => setTimeout(r, ms))
