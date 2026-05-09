@@ -87,6 +87,14 @@ The ultimate goal of **robotAiSim3D** is to create a fully autonomous agent capa
    npm run dev
    ```
 
----
+## 🤝 Contributing
+
+Contributions are welcome! If you have ideas for new robot skills, environment improvements, or better LLM prompt strategies:
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
 *Developed with ❤️ as a playground for AI & Robotics.*
