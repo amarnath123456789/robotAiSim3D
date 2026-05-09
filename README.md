@@ -97,4 +97,6 @@ Contributions are welcome! If you have ideas for new robot skills, environment i
 4. Push to the Branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-*Developed with ❤️ as a playground for AI & Robotics.*
+## 📜 License
+
+Distributed under the MIT License. See `LICENSE` for more information.
