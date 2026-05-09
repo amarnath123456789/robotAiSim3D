@@ -82,6 +82,9 @@ The ultimate goal of **robotAiSim3D** is to create a fully autonomous agent capa
    ```env
    VITE_GEMINI_API_KEY=your_api_key_here
    ```
+   > [!IMPORTANT]
+   > Make sure to get your API key from [Google AI Studio](https://aistudio.google.com/). Without a valid key, the robot will not be able to "think" or generate skills.
+
 5. Run the development server:
    ```bash
    npm run dev
